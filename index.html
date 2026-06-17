@@ -33,19 +33,19 @@
     background:repeating-linear-gradient(45deg, var(--safety) 0 14px, var(--ink) 14px 28px);
   }
   header{
-    padding:14px 16px 10px;
+    padding:12px 16px 8px;
     background:var(--ink);
     color:#f3f1ec;
   }
   header h1{
     margin:0;
-    font-size:1.15rem;
+    font-size:1.1rem;
     letter-spacing:0.02em;
     font-weight:700;
   }
   header .sub{
     margin-top:2px;
-    font-size:0.78rem;
+    font-size:0.74rem;
     color:#b9b3a6;
     font-family:var(--mono);
   }
@@ -59,7 +59,7 @@
     color:#fff;
     display:flex;
     gap:10px;
-    padding:9px 14px;
+    padding:8px 14px;
     font-family:var(--mono);
     align-items:center;
     border-bottom:3px solid var(--safety);
@@ -69,31 +69,32 @@
   .statusbar .label{
     display:block;
     color:#b9b3a6;
-    font-size:0.6rem;
+    font-size:0.58rem;
     text-transform:uppercase;
     letter-spacing:0.05em;
   }
   .statusbar .value{
     display:block;
     font-weight:700;
-    font-size:0.9rem;
+    font-size:0.88rem;
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
   }
 
-  main{ padding:14px; max-width:560px; margin:0 auto; }
+  main{ padding:12px; max-width:560px; margin:0 auto; }
 
   section{
     background:var(--panel);
     border:1px solid var(--line);
     border-radius:14px;
     padding:14px;
-    margin-bottom:14px;
+    margin-bottom:12px;
   }
+  section.compact{ padding:12px; }
   section h2{
-    margin:0 0 10px;
-    font-size:0.72rem;
+    margin:0 0 8px;
+    font-size:0.7rem;
     letter-spacing:0.08em;
     text-transform:uppercase;
     color:var(--muted);
@@ -102,17 +103,17 @@
 
   label{
     display:block;
-    font-size:0.78rem;
+    font-size:0.76rem;
     font-weight:600;
     color:var(--muted);
-    margin:10px 0 4px;
+    margin:8px 0 4px;
   }
   label:first-of-type{ margin-top:0; }
 
   input[type="text"], input[type="search"]{
     width:100%;
-    font-size:1.05rem;
-    padding:14px 12px;
+    font-size:1.02rem;
+    padding:12px 12px;
     border:2px solid var(--line);
     border-radius:10px;
     background:#fbfaf7;
@@ -140,25 +141,26 @@
     min-height:50px;
     max-height:100px;
     font-size:0.76rem;
+    margin-top:6px;
   }
   textarea#notes, textarea.notes-edit{
-    min-height:110px;
+    min-height:90px;
     font-family:var(--sans);
     font-size:1rem;
     color:var(--ink);
     border-style:solid;
   }
   textarea#company{
-    min-height:84px;
+    min-height:78px;
     font-family:var(--sans);
-    font-size:1.05rem;
+    font-size:1.02rem;
     color:var(--ink);
     border-style:solid;
   }
   textarea.paste-box{
-    min-height:140px;
+    min-height:120px;
     font-family:var(--sans);
-    font-size:1.05rem;
+    font-size:1.02rem;
     color:var(--ink);
     border-style:solid;
     border-color:var(--go);
@@ -172,12 +174,12 @@
     justify-content:center;
     gap:8px;
     width:100%;
-    min-height:60px;
-    font-size:1.08rem;
+    min-height:56px;
+    font-size:1.04rem;
     font-weight:700;
     border:none;
     border-radius:12px;
-    margin-top:10px;
+    margin-top:8px;
     cursor:pointer;
     color:#fff;
     -webkit-appearance:none;
@@ -186,8 +188,8 @@
   .btn:first-child{ margin-top:0; }
   .btn:disabled{ opacity:0.45; cursor:not-allowed; transform:none; }
 
-  .btn-biggest{ min-height:78px; font-size:1.24rem; letter-spacing:0.01em; }
-  .btn-sm{ min-height:44px; font-size:0.85rem; }
+  .btn-biggest{ min-height:72px; font-size:1.18rem; letter-spacing:0.01em; }
+  .btn-sm{ min-height:42px; font-size:0.82rem; }
 
   .btn-primary{ background:var(--safety); }
   .btn-primary:active{ background:var(--safety-dark); }
@@ -208,68 +210,90 @@
 
   .btn-stop{ background:var(--stop); }
 
-  .btn-row{ display:flex; gap:10px; }
-  .btn-row .btn{ margin-top:10px; }
+  .btn-row{ display:flex; gap:8px; }
+  .btn-row .btn{ margin-top:8px; }
 
-  .hint{ font-size:0.75rem; color:var(--muted); margin-top:6px; line-height:1.4; }
+  .hint{ font-size:0.74rem; color:var(--muted); margin-top:5px; line-height:1.4; }
 
   .instructions{
     background:#eef2ee;
     border:1px solid var(--go);
     color:var(--go-dark);
     border-radius:10px;
-    padding:10px 12px;
-    font-size:0.85rem;
+    padding:9px 11px;
+    font-size:0.82rem;
     line-height:1.4;
-    margin-bottom:12px;
+    margin-bottom:10px;
   }
 
-  .shortcut-help{ margin-bottom:12px; }
-  .shortcut-help summary{
-    font-size:0.8rem;
+  .shortcut-help, .fallback-details, .webocr-details, .raw-details{ margin-top:10px; }
+  .shortcut-help summary, .fallback-details summary, .webocr-details summary, .raw-details summary{
+    font-size:0.76rem;
     font-weight:700;
-    color:var(--ink);
+    color:var(--muted);
     cursor:pointer;
     padding:4px 0;
   }
-  .shortcut-steps{ margin:8px 0 2px; padding-left:20px; font-size:0.82rem; line-height:1.55; color:var(--ink); }
+  .shortcut-steps{ margin:8px 0 2px; padding-left:20px; font-size:0.8rem; line-height:1.5; color:var(--ink); }
   .shortcut-steps li{ margin-bottom:6px; }
 
-  .webocr-details{ margin-top:16px; border-top:1px dashed var(--line); padding-top:12px; }
-  .webocr-details summary{ font-size:0.78rem; font-weight:700; color:var(--muted); cursor:pointer; }
-  .webocr-panel{ margin-top:10px; }
+  .webocr-details{ border-top:1px dashed var(--line); padding-top:10px; }
+  .webocr-panel, .fallback-panel{ margin-top:8px; }
 
   .parse-hint{
     background:#fdf1ea;
     border:1px solid var(--safety);
     color:var(--safety-dark);
     border-radius:10px;
-    padding:10px 12px;
-    font-size:0.8rem;
-    margin:10px 0;
+    padding:9px 11px;
+    font-size:0.78rem;
+    margin:8px 0;
     line-height:1.4;
     display:none;
   }
   .parse-hint.show{ display:block; }
 
-  .quickgrid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px;
-    margin:12px 0 4px;
-  }
-  .quickgrid button{
-    min-height:48px;
+  .quick-vacant-btn{
+    width:100%;
+    min-height:46px;
     border-radius:10px;
     border:2px solid var(--line);
     background:#fff;
     color:var(--ink);
     font-weight:700;
-    font-size:0.78rem;
+    font-size:0.85rem;
     letter-spacing:0.02em;
     cursor:pointer;
+    margin-top:10px;
   }
-  .quickgrid button:active{ background:var(--paper); }
+  .quick-vacant-btn:active{ background:var(--paper); }
+
+  /* condensed job setup */
+  .job-row{
+    display:flex;
+    gap:8px;
+    align-items:flex-end;
+    margin-bottom:8px;
+  }
+  .job-row:last-of-type{ margin-bottom:0; }
+  .job-field{ flex:1; min-width:0; }
+  .job-field label{ margin:0 0 4px; }
+  .btn-compact{
+    flex:0 0 auto;
+    min-height:46px;
+    padding:0 12px;
+    border-radius:10px;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-weight:700;
+    font-size:0.76rem;
+    white-space:nowrap;
+    cursor:pointer;
+  }
+  .btn-compact.change-building{ border-color:var(--ink); }
+  .btn-compact.floor-down{ border-color:var(--safety); color:var(--safety-dark); }
+  .btn-compact:active{ background:var(--paper); }
 
   /* building picker */
   .picker-tabs{
@@ -433,7 +457,7 @@
     font-family:var(--mono);
   }
 
-  /* export reminder toast */
+  /* export reminder + clipboard prompt toasts */
   .reminder{
     position:fixed;
     left:12px;
@@ -493,29 +517,66 @@
 
 <main>
 
-  <section>
+  <section class="compact">
+    <h2>Job Setup</h2>
+    <div class="job-row">
+      <div class="job-field">
+        <label for="building">Building</label>
+        <input type="text" id="building" placeholder="e.g. 400 Main St" autocomplete="off">
+      </div>
+      <button type="button" class="btn-compact change-building" id="changeBuildingBtn">Change<br>Building</button>
+    </div>
+    <div class="job-row">
+      <div class="job-field">
+        <label for="floor">Floor</label>
+        <input type="text" id="floor" placeholder="e.g. 4 or 4th" autocomplete="off">
+      </div>
+      <button type="button" class="btn-compact floor-down" id="nextFloorDownBtn">▼ Floor<br>Down</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="markCompleteBtn" style="margin-top:10px;">✔ Mark Building Complete</button>
+  </section>
+
+  <section id="buildingPickerSection" style="display:none;">
     <h2>Building Picker</h2>
     <input type="search" id="buildingSearch" placeholder="Search any building address…" autocomplete="off">
     <div class="picker-tabs" id="pickerTabs"></div>
     <div class="bld-list" id="bldList"></div>
-    <div class="hint">Tap an area to browse, or type above to search every area at once. Tapping a building sets it as your current building below.</div>
-  </section>
-
-  <section>
-    <h2>Job Setup</h2>
-    <label for="building">Building address</label>
-    <input type="text" id="building" placeholder="e.g. 400 Main St" autocomplete="off">
-    <button class="btn btn-ghost" id="markCompleteBtn">✔ MARK BUILDING COMPLETE</button>
-    <label for="floor">Floor</label>
-    <input type="text" id="floor" placeholder="e.g. 4 or 4th" autocomplete="off">
-    <button class="btn btn-ghost" id="nextFloorDownBtn" style="margin-top:8px;">▼ NEXT FLOOR DOWN</button>
-    <div class="hint">Building/floor stay filled in between scans, and can always be typed or edited manually. Works with plain numbers, ordinals (4th), Ground, and basement levels (B1, B2).</div>
+    <div class="hint">Tap an area to browse, or type above to search every area at once. Tapping a building sets it and closes this picker.</div>
   </section>
 
   <section>
     <h2>Add an Entry</h2>
 
-    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then return here and paste.</div>
+    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then tap Paste From Clipboard below.</div>
+
+    <button class="btn btn-save btn-biggest" id="pasteClipboardBtn">📋 PASTE FROM CLIPBOARD</button>
+
+    <label for="suite">Suite number</label>
+    <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
+
+    <label for="company">Company name</label>
+    <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines."></textarea>
+
+    <label for="sf">Square footage (optional)</label>
+    <input type="text" id="sf" placeholder="e.g. 1,200" autocomplete="off">
+
+    <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
+    <textarea id="notes" placeholder="Any remarks. You can dictate this with the iPhone keyboard's mic button."></textarea>
+
+    <button type="button" class="quick-vacant-btn" id="qVacant">VACANT</button>
+
+    <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
+    <div class="btn-row">
+      <button class="btn btn-ghost btn-sm" id="saveBtn">Save (Stop Here)</button>
+      <button class="btn btn-stop btn-sm" id="discardBtn">Discard</button>
+    </div>
+
+    <div class="parse-hint" id="parseHint"></div>
+
+    <details class="raw-details">
+      <summary>Raw text (reference)</summary>
+      <textarea id="rawText" readonly placeholder="No text yet — paste Apple OCR text, or enter manually."></textarea>
+    </details>
 
     <details class="shortcut-help">
       <summary>First time? Set up the "Apple OCR Paste" Shortcut →</summary>
@@ -526,17 +587,19 @@
         <li>Add the action <strong>Extract Text from Image</strong> — this is Apple's built-in Live Text recognition, fully on-device.</li>
         <li>Add the action <strong>Copy to Clipboard</strong>.</li>
         <li>Optional: add the shortcut to your Home Screen or the Share Sheet for one-tap access.</li>
-        <li>Run it on a suite plaque, then come back to this page and paste below.</li>
+        <li>Run it on a suite plaque, then come back here and tap Paste From Clipboard.</li>
       </ol>
     </details>
 
-    <button class="btn btn-save" id="pasteClipboardBtn">📋 PASTE FROM CLIPBOARD</button>
-    <div class="hint">Reads your clipboard and parses it instantly. iOS may show a one-time permission prompt the first time.</div>
-
-    <label for="appleOcrPaste">Paste Apple OCR text</label>
-    <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then paste the text your Shortcut copied (long-press → Paste)."></textarea>
-    <button class="btn btn-primary" id="parsePasteBtn">⬇ PARSE PASTED TEXT</button>
-    <button class="btn btn-ghost" id="manualBtn">✏️ ENTER MANUALLY (NO TEXT)</button>
+    <details class="fallback-details">
+      <summary>Paste manually, or enter without OCR →</summary>
+      <div class="fallback-panel">
+        <label for="appleOcrPaste">Paste Apple OCR text</label>
+        <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then paste the text your Shortcut copied (long-press → Paste)."></textarea>
+        <button class="btn btn-primary" id="parsePasteBtn">⬇ PARSE PASTED TEXT</button>
+        <button class="btn btn-ghost" id="manualBtn">✏️ ENTER MANUALLY (NO TEXT)</button>
+      </div>
+    </details>
 
     <details class="webocr-details">
       <summary>Try Web OCR (optional, on-device, usually less accurate)</summary>
@@ -551,38 +614,6 @@
         <div class="hint">Runs Tesseract.js fully in your browser, on-device. Usually less accurate than Apple's built-in OCR above. The engine (~2–3MB) loads from a free CDN the first time you use it, then it's cached.</div>
       </div>
     </details>
-  </section>
-
-  <section id="reviewSection" style="display:none;">
-    <h2>Confirm &amp; Edit</h2>
-
-    <label for="rawText">Raw text (reference)</label>
-    <textarea id="rawText" readonly placeholder="No text yet — paste Apple OCR text above, or enter manually."></textarea>
-
-    <div class="parse-hint" id="parseHint"></div>
-
-    <label for="suite">Suite number</label>
-    <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
-
-    <label for="company">Company name</label>
-    <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines."></textarea>
-
-    <div class="quickgrid">
-      <button type="button" id="qVacant">VACANT</button>
-      <button type="button" id="qNoName">NO NAME</button>
-      <button type="button" id="qUnreadable">UNREADABLE</button>
-      <button type="button" id="qDirectory">DIRECTORY ONLY</button>
-    </div>
-
-    <label for="sf">Square footage (optional)</label>
-    <input type="text" id="sf" placeholder="e.g. 1,200" autocomplete="off">
-
-    <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
-    <textarea id="notes" placeholder="Any remarks. You can dictate this with the iPhone keyboard's mic button."></textarea>
-
-    <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
-    <button class="btn btn-ghost" id="saveBtn">✔ SAVE ROW (STOP HERE)</button>
-    <button class="btn btn-stop" id="discardBtn">✕ DISCARD</button>
   </section>
 
   <section>
@@ -682,6 +713,8 @@
   var buildingSearch = $("buildingSearch");
   var pickerTabs = $("pickerTabs");
   var bldList = $("bldList");
+  var buildingPickerSection = $("buildingPickerSection");
+  var changeBuildingBtn = $("changeBuildingBtn");
   var markCompleteBtn = $("markCompleteBtn");
   var floorInput = $("floor");
   var nextFloorDownBtn = $("nextFloorDownBtn");
@@ -695,7 +728,6 @@
   var statusBox = $("status");
   var statusText = $("statusText");
   var statusBar = $("statusBar");
-  var reviewSection = $("reviewSection");
   var parseHint = $("parseHint");
   var suiteInput = $("suite");
   var companyInput = $("company");
@@ -723,13 +755,10 @@
   var clipboardYesBtn = $("clipboardYesBtn");
   var clipboardNoBtn = $("clipboardNoBtn");
   var qVacant = $("qVacant");
-  var qNoName = $("qNoName");
-  var qUnreadable = $("qUnreadable");
-  var qDirectory = $("qDirectory");
 
   var editingRowId = null;
   var activeArea = Object.keys(BUILDING_AREAS)[0];
-  var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text above, or enter manually.";
+  var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text, or enter manually.";
   var lastSeenClipboardText = "";
   var pendingClipboardText = "";
 
@@ -847,7 +876,28 @@
     renderBuildingPicker();
   });
 
-  // ---------- building picker ----------
+  // ---------- building picker (collapsed by default) ----------
+
+  function openBuildingPicker(){
+    buildingPickerSection.style.display = "block";
+    buildingPickerSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function closeBuildingPicker(){
+    buildingPickerSection.style.display = "none";
+  }
+
+  function isBuildingPickerOpen(){
+    return buildingPickerSection.style.display !== "none";
+  }
+
+  changeBuildingBtn.addEventListener("click", function(){
+    if (isBuildingPickerOpen()){
+      closeBuildingPicker();
+    } else {
+      openBuildingPicker();
+    }
+  });
 
   function parseBuildingEntry(raw){
     var m = raw.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
@@ -920,14 +970,16 @@
         localStorage.setItem(BUILDING_KEY, addr);
         updateStatusBar();
         updateMarkCompleteButton();
+        buildingSearch.value = "";
         renderBuildingPicker();
+        closeBuildingPicker(); // auto-collapse right after a selection
       });
     });
   }
 
   buildingSearch.addEventListener("input", renderBuildingPicker);
 
-  // ---------- next floor down ----------
+  // ---------- floor down ----------
 
   function ordinalSuffix(n){
     n = Math.abs(n);
@@ -1002,7 +1054,7 @@
     statusBox.classList.remove("show");
   }
 
-  // ---------- shared review helpers ----------
+  // ---------- shared entry-field helpers ----------
 
   function showParseHint(msg){
     parseHint.textContent = "⚠ " + msg;
@@ -1012,21 +1064,19 @@
     parseHint.classList.remove("show");
   }
 
-  function openReview(){
-    reviewSection.style.display = "block";
-    reviewSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    // Auto-focus: suite first if missing, otherwise company. Small delay
-    // helps iOS Safari reliably raise the keyboard after the scroll/layout.
+  // Everything is always visible now (no separate review screen to open),
+  // so all we need after a parse is to land focus in the right field.
+  function focusAppropriateField(){
     setTimeout(function(){
       if (!suiteInput.value.trim()){
         suiteInput.focus();
       } else {
         companyInput.focus();
       }
-    }, 300);
+    }, 50);
   }
 
-  function applyParsedToReview(parsed){
+  function applyParsedToFields(parsed){
     rawText.value = parsed.raw;
     suiteInput.value = parsed.suite;
     companyInput.value = parsed.company;
@@ -1037,7 +1087,7 @@
     } else {
       hideParseHint();
     }
-    openReview();
+    focusAppropriateField();
   }
 
   function startManualEntry(){
@@ -1051,12 +1101,12 @@
     notesInput.value = "";
     sfInput.value = "";
     hideParseHint();
-    openReview();
+    suiteInput.focus();
   }
 
   manualBtn.addEventListener("click", startManualEntry);
 
-  // ---------- Apple OCR Paste (primary workflow) ----------
+  // ---------- Apple OCR Paste (manual fallback textarea) ----------
 
   function handlePastedText(text){
     if (!text || !text.trim()){
@@ -1064,7 +1114,7 @@
       return;
     }
     var parsed = parseRawText(text);
-    applyParsedToReview(parsed);
+    applyParsedToFields(parsed);
   }
 
   parsePasteBtn.addEventListener("click", function(){
@@ -1076,7 +1126,7 @@
     setTimeout(function(){ handlePastedText(appleOcrPaste.value); }, 60);
   });
 
-  // ---------- Apple OCR Clipboard Mode ----------
+  // ---------- Apple OCR Clipboard Mode (primary workflow) ----------
 
   function clipboardApiAvailable(){
     return !!(navigator.clipboard && navigator.clipboard.readText);
@@ -1089,9 +1139,9 @@
   function showClipboardPrompt(text){
     if (exportReminder.classList.contains("show")) return; // avoid stacking two toasts
     pendingClipboardText = text;
-    var preview = text.trim().replace(/\s+/g, " ");
-    if (preview.length > 90) preview = preview.slice(0, 90) + "…";
-    clipboardPromptPreview.textContent = preview;
+    var prev = text.trim().replace(/\s+/g, " ");
+    if (prev.length > 90) prev = prev.slice(0, 90) + "…";
+    clipboardPromptPreview.textContent = prev;
     clipboardPrompt.classList.add("show");
   }
 
@@ -1111,7 +1161,7 @@
   // Explicit button: always a direct user gesture, so this is the reliable path.
   pasteClipboardBtn.addEventListener("click", function(){
     if (!clipboardApiAvailable()){
-      alert("Clipboard access isn't available in this browser. Long-press the paste box below and choose Paste instead.");
+      alert("Clipboard access isn't available in this browser. Use \"Paste manually\" below instead.");
       return;
     }
     navigator.clipboard.readText().then(function(text){
@@ -1124,7 +1174,7 @@
       handlePastedText(text);
     }).catch(function(err){
       console.error(err);
-      alert("Couldn't read the clipboard. iOS may need you to allow access — try again, or long-press the paste box below and choose Paste instead.");
+      alert("Couldn't read the clipboard. iOS may need you to allow access — try again, or use \"Paste manually\" below instead.");
     });
   });
 
@@ -1133,7 +1183,6 @@
   // nothing if the browser refuses — the button above always works.
   function checkClipboardOnFocus(){
     if (!clipboardApiAvailable()) return;
-    if (reviewSection.style.display === "block") return; // already reviewing an entry
     navigator.clipboard.readText().then(function(text){
       if (!text || !text.trim()) return;
       if (text === lastSeenClipboardText) return;
@@ -1215,7 +1264,6 @@
   }
 
   function runOcr(canvasOrImage){
-    reviewSection.style.display = "none";
     showStatus("Loading Web OCR engine…", 0);
 
     ensureTesseractLoaded(function(){
@@ -1232,7 +1280,7 @@
         hideStatus();
         var text = (result && result.data && result.data.text) || "";
         var parsed = parseRawText(text);
-        applyParsedToReview(parsed);
+        applyParsedToFields(parsed);
       }).catch(function(err){
         hideStatus();
         console.error(err);
@@ -1244,36 +1292,25 @@
         notesInput.value = "";
         sfInput.value = "";
         hideParseHint();
-        openReview();
       });
     });
   }
 
-  // ---------- quick buttons ----------
+  // ---------- quick button (Vacant only) ----------
 
-  function applyQuickLabel(label){
-    companyInput.value = label;
+  qVacant.addEventListener("click", function(){
+    companyInput.value = "VACANT";
     if (!suiteInput.value.trim()){
       suiteInput.focus();
     } else {
       companyInput.blur();
       suiteInput.blur();
     }
-  }
-
-  qVacant.addEventListener("click", function(){ applyQuickLabel("VACANT"); });
-  qNoName.addEventListener("click", function(){ applyQuickLabel("NO NAME"); });
-  qUnreadable.addEventListener("click", function(){
-    applyQuickLabel("UNREADABLE");
-    if (!notesInput.value.trim() && rawText.value.trim()){
-      notesInput.value = rawText.value.trim();
-    }
   });
-  qDirectory.addEventListener("click", function(){ applyQuickLabel("DIRECTORY ONLY"); });
 
   // ---------- text parsing (shared by Apple OCR Paste, Clipboard, and Web OCR) ----------
   //
-  // New rule set (every line is kept, nothing is discarded):
+  // Every line is kept, nothing is discarded:
   //   - Any line containing at least one digit -> Suite Number (all such
   //     lines/tokens are kept, joined together). Letters directly touching
   //     digits (12A, PH1, A120, 1200B) are left completely intact.
@@ -1315,11 +1352,10 @@
   // ---------- save / discard ----------
 
   discardBtn.addEventListener("click", function(){
-    resetScanArea();
+    resetEntryFields();
   });
 
-  function resetScanArea(){
-    reviewSection.style.display = "none";
+  function resetEntryFields(){
     preview.style.display = "none";
     preview.src = "";
     appleOcrPaste.value = "";
@@ -1339,8 +1375,8 @@
     var floor = floorInput.value.trim();
     var suite = suiteInput.value.trim();
     var company = companyInput.value.trim();
-    var notes = notesInput.value.trim();
     var sf = sfInput.value.trim();
+    var notes = notesInput.value.trim();
 
     if (!building || !floor){
       alert("Enter the Building address and Floor at the top before saving.");
@@ -1408,15 +1444,15 @@
 
   saveBtn.addEventListener("click", function(){
     var ok = performSave();
-    if (ok) resetScanArea();
+    if (ok) resetEntryFields();
   });
 
   saveNextBtn.addEventListener("click", function(){
     var ok = performSave();
     if (ok){
-      resetScanArea();
-      appleOcrPaste.scrollIntoView({ behavior: "smooth", block: "start" });
-      setTimeout(function(){ appleOcrPaste.focus(); }, 300);
+      resetEntryFields();
+      suiteInput.blur();
+      companyInput.blur();
     }
   });
 
