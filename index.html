@@ -477,7 +477,6 @@
   }
   .reminder.show{ display:flex; }
   .reminder p{ margin:0; font-size:0.88rem; line-height:1.4; }
-  .reminder p.preview{ font-size:0.78rem; color:#b9b3a6; font-style:italic; }
   .reminder .reminder-actions{ display:flex; gap:8px; }
   .reminder .reminder-actions button{
     flex:1;
@@ -547,9 +546,9 @@
   <section>
     <h2>Add an Entry</h2>
 
-    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then tap Paste From Clipboard below.</div>
+    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text. It's imported automatically as soon as you return to this tab.</div>
 
-    <button class="btn btn-save btn-biggest" id="pasteClipboardBtn">📋 PASTE FROM CLIPBOARD</button>
+    <button class="btn btn-ghost btn-sm" id="pasteClipboardBtn" style="display:none;">Paste Clipboard</button>
 
     <label for="suite">Suite number</label>
     <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
@@ -647,15 +646,6 @@
   </div>
 </div>
 
-<div class="reminder" id="clipboardPrompt">
-  <p>Use clipboard text?</p>
-  <p class="preview" id="clipboardPromptPreview"></p>
-  <div class="reminder-actions">
-    <button class="rem-export" id="clipboardYesBtn">Yes</button>
-    <button class="rem-dismiss" id="clipboardNoBtn">No</button>
-  </div>
-</div>
-
 <script>
 (function(){
   "use strict";
@@ -750,17 +740,13 @@
   var exportReminderText = $("exportReminderText");
   var reminderExportBtn = $("reminderExportBtn");
   var reminderDismissBtn = $("reminderDismissBtn");
-  var clipboardPrompt = $("clipboardPrompt");
-  var clipboardPromptPreview = $("clipboardPromptPreview");
-  var clipboardYesBtn = $("clipboardYesBtn");
-  var clipboardNoBtn = $("clipboardNoBtn");
   var qVacant = $("qVacant");
 
   var editingRowId = null;
   var activeArea = Object.keys(BUILDING_AREAS)[0];
   var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text, or enter manually.";
   var lastSeenClipboardText = "";
-  var pendingClipboardText = "";
+  var autoClipboardWorking = null; // null = unknown yet, true = confirmed working, false = confirmed blocked
 
   // ---------- storage availability check ----------
   // GitHub Pages serves over https, so localStorage is reliable here.
@@ -1127,69 +1113,74 @@
   });
 
   // ---------- Apple OCR Clipboard Mode (primary workflow) ----------
+  //
+  // Every time the app becomes visible again, the clipboard is read and,
+  // if it holds new text, imported and parsed immediately with no
+  // confirmation step. The "Paste Clipboard" button only ever appears as a
+  // fallback, and only once an automatic read has actually failed (e.g.
+  // iOS withholding permission outside a direct tap) — once a read
+  // succeeds again, the button hides itself.
 
   function clipboardApiAvailable(){
     return !!(navigator.clipboard && navigator.clipboard.readText);
   }
 
-  function hideClipboardPrompt(){
-    clipboardPrompt.classList.remove("show");
+  function showFallbackClipboardButton(){
+    if (autoClipboardWorking !== false){
+      autoClipboardWorking = false;
+      pasteClipboardBtn.style.display = "block";
+    }
   }
 
-  function showClipboardPrompt(text){
-    if (exportReminder.classList.contains("show")) return; // avoid stacking two toasts
-    pendingClipboardText = text;
-    var prev = text.trim().replace(/\s+/g, " ");
-    if (prev.length > 90) prev = prev.slice(0, 90) + "…";
-    clipboardPromptPreview.textContent = prev;
-    clipboardPrompt.classList.add("show");
+  function hideFallbackClipboardButton(){
+    if (autoClipboardWorking !== true){
+      autoClipboardWorking = true;
+      pasteClipboardBtn.style.display = "none";
+    }
   }
 
-  clipboardYesBtn.addEventListener("click", function(){
-    var text = pendingClipboardText;
+  function importClipboardText(text){
     lastSeenClipboardText = text;
-    hideClipboardPrompt();
     appleOcrPaste.value = text;
-    handlePastedText(text);
-  });
+    var parsed = parseRawText(text);
+    applyParsedToFields(parsed);
+  }
 
-  clipboardNoBtn.addEventListener("click", function(){
-    lastSeenClipboardText = pendingClipboardText;
-    hideClipboardPrompt();
-  });
-
-  // Explicit button: always a direct user gesture, so this is the reliable path.
+  // Explicit button: shown only as a fallback when automatic reads fail.
   pasteClipboardBtn.addEventListener("click", function(){
     if (!clipboardApiAvailable()){
       alert("Clipboard access isn't available in this browser. Use \"Paste manually\" below instead.");
       return;
     }
     navigator.clipboard.readText().then(function(text){
+      hideFallbackClipboardButton();
       if (!text || !text.trim()){
         alert("Clipboard is empty or doesn't contain text.");
         return;
       }
-      lastSeenClipboardText = text;
-      appleOcrPaste.value = text;
-      handlePastedText(text);
+      importClipboardText(text);
     }).catch(function(err){
       console.error(err);
+      showFallbackClipboardButton();
       alert("Couldn't read the clipboard. iOS may need you to allow access — try again, or use \"Paste manually\" below instead.");
     });
   });
 
-  // Best-effort auto-check when the page regains focus. Safari often blocks
-  // clipboard reads that aren't tied to a direct tap, so this silently does
-  // nothing if the browser refuses — the button above always works.
+  // Runs on every focus / visibilitychange, and once at startup. Imports
+  // new clipboard text immediately, with no confirmation prompt.
   function checkClipboardOnFocus(){
-    if (!clipboardApiAvailable()) return;
+    if (!clipboardApiAvailable()){
+      showFallbackClipboardButton();
+      return;
+    }
     navigator.clipboard.readText().then(function(text){
+      hideFallbackClipboardButton(); // a successful read means auto-access works
       if (!text || !text.trim()) return;
-      if (text === lastSeenClipboardText) return;
-      if (text === appleOcrPaste.value) { lastSeenClipboardText = text; return; }
-      showClipboardPrompt(text);
+      if (text === lastSeenClipboardText) return; // never import the same clipboard twice
+      importClipboardText(text);
     }).catch(function(){
-      // No permission / no gesture — ignore quietly.
+      // Blocked without a direct tap (common on iOS Safari) — fall back quietly.
+      showFallbackClipboardButton();
     });
   }
 
@@ -1453,6 +1444,7 @@
       resetEntryFields();
       suiteInput.blur();
       companyInput.blur();
+      checkClipboardOnFocus(); // start waiting for the next clipboard text right away
     }
   });
 
@@ -1671,6 +1663,7 @@
   renderRows();
   updateStatusBar();
   updateUndoButtonState();
+  checkClipboardOnFocus();
 
 })();
 </script>
