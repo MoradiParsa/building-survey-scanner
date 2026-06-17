@@ -92,6 +92,7 @@
     margin-bottom:12px;
   }
   section.compact{ padding:12px; }
+  #entrySection{ scroll-margin-top:58px; }
   section h2{
     margin:0 0 8px;
     font-size:0.7rem;
@@ -252,6 +253,24 @@
     display:none;
   }
   .parse-hint.show{ display:block; }
+
+  .clipboard-status{
+    display:none;
+    font-size:0.76rem;
+    color:var(--muted);
+    background:#fbfaf7;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:7px 10px;
+    margin-bottom:8px;
+    line-height:1.4;
+  }
+  .clipboard-status.show{ display:block; }
+  .clipboard-status.success{
+    color:var(--go-dark);
+    background:#eef2ee;
+    border-color:var(--go);
+  }
 
   .quick-vacant-btn{
     width:100%;
@@ -543,11 +562,12 @@
     <div class="hint">Tap an area to browse, or type above to search every area at once. Tapping a building sets it and closes this picker.</div>
   </section>
 
-  <section>
+  <section id="entrySection">
     <h2>Add an Entry</h2>
 
     <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text. It's imported automatically as soon as you return to this tab.</div>
 
+    <div class="clipboard-status" id="clipboardStatus"></div>
     <button class="btn btn-ghost btn-sm" id="pasteClipboardBtn" style="display:none;">Paste Clipboard</button>
 
     <label for="suite">Suite number</label>
@@ -711,6 +731,8 @@
   var appleOcrPaste = $("appleOcrPaste");
   var parsePasteBtn = $("parsePasteBtn");
   var pasteClipboardBtn = $("pasteClipboardBtn");
+  var clipboardStatus = $("clipboardStatus");
+  var entrySection = $("entrySection");
   var cameraInput = $("cameraInput");
   var scanBtn = $("scanBtn");
   var manualBtn = $("manualBtn");
@@ -747,6 +769,7 @@
   var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text, or enter manually.";
   var lastSeenClipboardText = "";
   var autoClipboardWorking = null; // null = unknown yet, true = confirmed working, false = confirmed blocked
+  var clipboardStatusTimer = null;
 
   // ---------- storage availability check ----------
   // GitHub Pages serves over https, so localStorage is reliable here.
@@ -1114,21 +1137,43 @@
 
   // ---------- Apple OCR Clipboard Mode (primary workflow) ----------
   //
-  // Every time the app becomes visible again, the clipboard is read and,
-  // if it holds new text, imported and parsed immediately with no
-  // confirmation step. The "Paste Clipboard" button only ever appears as a
-  // fallback, and only once an automatic read has actually failed (e.g.
-  // iOS withholding permission outside a direct tap) — once a read
-  // succeeds again, the button hides itself.
+  // iOS Safari generally only allows navigator.clipboard.readText() during
+  // a direct user gesture — focus/visibilitychange/pageshow often don't
+  // qualify, which is why automatic reads can silently fail there. As a
+  // practical workaround (about as far as iOS allows), a throttled
+  // touchstart listener also attempts a read: the moment you touch the
+  // screen again after returning from the Shortcut, that touch itself is a
+  // valid gesture, so the read has a real chance of succeeding without a
+  // dedicated "Paste" tap. The button only ever appears as a fallback once
+  // a read has actually failed, and hides itself again once one succeeds.
 
   function clipboardApiAvailable(){
     return !!(navigator.clipboard && navigator.clipboard.readText);
+  }
+
+  function setClipboardStatus(msg, variant, autoClear){
+    if (clipboardStatusTimer){ clearTimeout(clipboardStatusTimer); clipboardStatusTimer = null; }
+    if (!msg){
+      clipboardStatus.classList.remove("show", "success");
+      clipboardStatus.textContent = "";
+      return;
+    }
+    clipboardStatus.textContent = msg;
+    clipboardStatus.classList.add("show");
+    clipboardStatus.classList.toggle("success", variant === "success");
+    if (autoClear){
+      clipboardStatusTimer = setTimeout(function(){
+        clipboardStatus.classList.remove("show", "success");
+        clipboardStatus.textContent = "";
+      }, 3000);
+    }
   }
 
   function showFallbackClipboardButton(){
     if (autoClipboardWorking !== false){
       autoClipboardWorking = false;
       pasteClipboardBtn.style.display = "block";
+      setClipboardStatus("Tap Paste Clipboard if iPhone blocks auto-import.", "hint", false);
     }
   }
 
@@ -1136,6 +1181,7 @@
     if (autoClipboardWorking !== true){
       autoClipboardWorking = true;
       pasteClipboardBtn.style.display = "none";
+      setClipboardStatus("", null, false);
     }
   }
 
@@ -1144,6 +1190,7 @@
     appleOcrPaste.value = text;
     var parsed = parseRawText(text);
     applyParsedToFields(parsed);
+    setClipboardStatus("✓ Clipboard auto-imported", "success", true);
   }
 
   // Explicit button: shown only as a fallback when automatic reads fail.
@@ -1166,8 +1213,8 @@
     });
   });
 
-  // Runs on every focus / visibilitychange, and once at startup. Imports
-  // new clipboard text immediately, with no confirmation prompt.
+  // Runs on every focus / visibilitychange / pageshow / qualifying touch.
+  // Imports new clipboard text immediately, with no confirmation prompt.
   function checkClipboardOnFocus(){
     if (!clipboardApiAvailable()){
       showFallbackClipboardButton();
@@ -1179,15 +1226,27 @@
       if (text === lastSeenClipboardText) return; // never import the same clipboard twice
       importClipboardText(text);
     }).catch(function(){
-      // Blocked without a direct tap (common on iOS Safari) — fall back quietly.
+      // Blocked without a qualifying gesture (common on iOS Safari) — fall back quietly.
       showFallbackClipboardButton();
     });
   }
 
   window.addEventListener("focus", checkClipboardOnFocus);
+  window.addEventListener("pageshow", checkClipboardOnFocus);
   document.addEventListener("visibilitychange", function(){
     if (document.visibilityState === "visible") checkClipboardOnFocus();
   });
+
+  // Touch-gesture fallback: iOS treats a touch as a real user gesture, so
+  // this is the most reliable trigger when the events above get silently
+  // blocked. Throttled so normal scrolling/tapping doesn't hammer the API.
+  var lastTouchClipboardCheck = 0;
+  document.addEventListener("touchstart", function(){
+    var now = Date.now();
+    if (now - lastTouchClipboardCheck < 1500) return;
+    lastTouchClipboardCheck = now;
+    checkClipboardOnFocus();
+  }, { passive: true });
 
   // ---------- Web OCR (optional, lazy-loaded Tesseract.js) ----------
 
@@ -1444,6 +1503,7 @@
       resetEntryFields();
       suiteInput.blur();
       companyInput.blur();
+      entrySection.scrollIntoView({ behavior: "smooth", block: "start" });
       checkClipboardOnFocus(); // start waiting for the next clipboard text right away
     }
   });
