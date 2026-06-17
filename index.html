@@ -159,11 +159,12 @@
     border-style:solid;
   }
   textarea.paste-box{
-    min-height:120px;
+    min-height:150px;
     font-family:var(--sans);
-    font-size:1.02rem;
+    font-size:1.08rem;
     color:var(--ink);
     border-style:solid;
+    border-width:3px;
     border-color:var(--go);
     background:#fff;
   }
@@ -227,8 +228,8 @@
     margin-bottom:10px;
   }
 
-  .shortcut-help, .fallback-details, .webocr-details, .raw-details{ margin-top:10px; }
-  .shortcut-help summary, .fallback-details summary, .webocr-details summary, .raw-details summary{
+  .shortcut-help, .webocr-details, .raw-details{ margin-top:10px; }
+  .shortcut-help summary, .webocr-details summary, .raw-details summary{
     font-size:0.76rem;
     font-weight:700;
     color:var(--muted);
@@ -238,8 +239,24 @@
   .shortcut-steps{ margin:8px 0 2px; padding-left:20px; font-size:0.8rem; line-height:1.5; color:var(--ink); }
   .shortcut-steps li{ margin-bottom:6px; }
 
+  .paste-fallback-row{ display:flex; gap:6px; margin:8px 0 0; }
+  .paste-fallback-row button{
+    flex:1;
+    min-height:40px;
+    padding:0 4px;
+    border-radius:8px;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--muted);
+    font-weight:700;
+    font-size:0.68rem;
+    white-space:nowrap;
+    cursor:pointer;
+  }
+  .paste-fallback-row button:active{ background:var(--paper); }
+
   .webocr-details{ border-top:1px dashed var(--line); padding-top:10px; }
-  .webocr-panel, .fallback-panel{ margin-top:8px; }
+  .webocr-panel{ margin-top:8px; }
 
   .parse-hint{
     background:#fdf1ea;
@@ -565,10 +582,18 @@
   <section id="entrySection">
     <h2>Add an Entry</h2>
 
-    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text. It's imported automatically as soon as you return to this tab.</div>
+    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then tap the box below and paste.</div>
 
     <div class="clipboard-status" id="clipboardStatus"></div>
-    <button class="btn btn-ghost btn-sm" id="pasteClipboardBtn" style="display:none;">Paste Clipboard</button>
+
+    <label for="appleOcrPaste">Tap here and paste Apple OCR text</label>
+    <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then tap Paste when iPhone shows it."></textarea>
+
+    <div class="paste-fallback-row">
+      <button type="button" id="parsePasteBtn">Parse Text</button>
+      <button type="button" id="pasteClipboardBtn">Use Clipboard</button>
+      <button type="button" id="manualBtn">Manual Entry</button>
+    </div>
 
     <label for="suite">Suite number</label>
     <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
@@ -606,18 +631,8 @@
         <li>Add the action <strong>Extract Text from Image</strong> — this is Apple's built-in Live Text recognition, fully on-device.</li>
         <li>Add the action <strong>Copy to Clipboard</strong>.</li>
         <li>Optional: add the shortcut to your Home Screen or the Share Sheet for one-tap access.</li>
-        <li>Run it on a suite plaque, then come back here and tap Paste From Clipboard.</li>
+        <li>Run it on a suite plaque, then come back here, tap the box above, and paste.</li>
       </ol>
-    </details>
-
-    <details class="fallback-details">
-      <summary>Paste manually, or enter without OCR →</summary>
-      <div class="fallback-panel">
-        <label for="appleOcrPaste">Paste Apple OCR text</label>
-        <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then paste the text your Shortcut copied (long-press → Paste)."></textarea>
-        <button class="btn btn-primary" id="parsePasteBtn">⬇ PARSE PASTED TEXT</button>
-        <button class="btn btn-ghost" id="manualBtn">✏️ ENTER MANUALLY (NO TEXT)</button>
-      </div>
     </details>
 
     <details class="webocr-details">
@@ -768,7 +783,6 @@
   var activeArea = Object.keys(BUILDING_AREAS)[0];
   var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text, or enter manually.";
   var lastSeenClipboardText = "";
-  var autoClipboardWorking = null; // null = unknown yet, true = confirmed working, false = confirmed blocked
   var clipboardStatusTimer = null;
 
   // ---------- storage availability check ----------
@@ -1092,9 +1106,11 @@
     notesInput.value = "";
     sfInput.value = "";
     if (!parsed.suite && !parsed.company){
+      setClipboardStatus("", null, false);
       showParseHint("Couldn't find any suite numbers or company text in this content. Check the raw text below and enter details manually.");
     } else {
       hideParseHint();
+      setClipboardStatus("✓ Text imported and parsed", "success", true);
     }
     focusAppropriateField();
   }
@@ -1115,37 +1131,16 @@
 
   manualBtn.addEventListener("click", startManualEntry);
 
-  // ---------- Apple OCR Paste (manual fallback textarea) ----------
-
-  function handlePastedText(text){
-    if (!text || !text.trim()){
-      alert("Paste box is empty — copy the OCR text from your Shortcut first, then paste here.");
-      return;
-    }
-    var parsed = parseRawText(text);
-    applyParsedToFields(parsed);
-  }
-
-  parsePasteBtn.addEventListener("click", function(){
-    handlePastedText(appleOcrPaste.value);
-  });
-
-  appleOcrPaste.addEventListener("paste", function(){
-    // Read after a short delay so the pasted text has actually landed in the field.
-    setTimeout(function(){ handlePastedText(appleOcrPaste.value); }, 60);
-  });
-
-  // ---------- Apple OCR Clipboard Mode (primary workflow) ----------
+  // ---------- Apple OCR Paste (primary workflow) ----------
   //
-  // iOS Safari generally only allows navigator.clipboard.readText() during
-  // a direct user gesture — focus/visibilitychange/pageshow often don't
-  // qualify, which is why automatic reads can silently fail there. As a
-  // practical workaround (about as far as iOS allows), a throttled
-  // touchstart listener also attempts a read: the moment you touch the
-  // screen again after returning from the Shortcut, that touch itself is a
-  // valid gesture, so the read has a real chance of succeeding without a
-  // dedicated "Paste" tap. The button only ever appears as a fallback once
-  // a read has actually failed, and hides itself again once one succeeds.
+  // The big textarea below is the whole trick: tapping into an empty,
+  // focused text field is what makes iOS show its normal "Paste" bubble —
+  // that's standard system text-field behavior and needs no JS permission
+  // of any kind. The previous approach called navigator.clipboard.readText()
+  // proactively, which is what triggered iOS's separate "Allow Paste"
+  // permission prompt on top of everything else. Tapping the box and using
+  // iOS's own Paste bubble avoids that extra prompt entirely — it's the
+  // fewest taps iOS allows for getting clipboard text into a page.
 
   function clipboardApiAvailable(){
     return !!(navigator.clipboard && navigator.clipboard.readText);
@@ -1169,84 +1164,51 @@
     }
   }
 
-  function showFallbackClipboardButton(){
-    if (autoClipboardWorking !== false){
-      autoClipboardWorking = false;
-      pasteClipboardBtn.style.display = "block";
-      setClipboardStatus("Tap Paste Clipboard if iPhone blocks auto-import.", "hint", false);
+  // Single entry point for "we now have some text — import and parse it,"
+  // whether it arrived via paste, the Parse Text button, or the fallback
+  // clipboard button.
+  function processIncomingText(text){
+    if (!text || !text.trim()){
+      alert("Nothing to parse yet — paste or type some OCR text first.");
+      return;
     }
-  }
-
-  function hideFallbackClipboardButton(){
-    if (autoClipboardWorking !== true){
-      autoClipboardWorking = true;
-      pasteClipboardBtn.style.display = "none";
-      setClipboardStatus("", null, false);
-    }
-  }
-
-  function importClipboardText(text){
     lastSeenClipboardText = text;
     appleOcrPaste.value = text;
     var parsed = parseRawText(text);
     applyParsedToFields(parsed);
-    setClipboardStatus("✓ Clipboard auto-imported", "success", true);
   }
 
-  // Explicit button: shown only as a fallback when automatic reads fail.
+  // Fires automatically the instant a paste lands in the box — this is the
+  // main workflow: tap box -> iPhone's Paste bubble -> auto-parse.
+  appleOcrPaste.addEventListener("paste", function(){
+    setTimeout(function(){ processIncomingText(appleOcrPaste.value); }, 60);
+  });
+
+  // Manual backup in case a paste somehow doesn't fire the event above
+  // (e.g. text was typed or dictated in instead of pasted).
+  parsePasteBtn.addEventListener("click", function(){
+    processIncomingText(appleOcrPaste.value);
+  });
+
+  // Small fallback only: a one-off explicit clipboard read, triggered by a
+  // direct tap so it has the best chance of working without extra prompts.
+  // Not used automatically in the background anymore.
   pasteClipboardBtn.addEventListener("click", function(){
     if (!clipboardApiAvailable()){
-      alert("Clipboard access isn't available in this browser. Use \"Paste manually\" below instead.");
+      alert("Clipboard access isn't available in this browser. Tap the box above and use iPhone's Paste option instead.");
       return;
     }
     navigator.clipboard.readText().then(function(text){
-      hideFallbackClipboardButton();
       if (!text || !text.trim()){
         alert("Clipboard is empty or doesn't contain text.");
         return;
       }
-      importClipboardText(text);
+      processIncomingText(text);
     }).catch(function(err){
       console.error(err);
-      showFallbackClipboardButton();
-      alert("Couldn't read the clipboard. iOS may need you to allow access — try again, or use \"Paste manually\" below instead.");
+      alert("Couldn't read the clipboard. Tap the box above and use iPhone's Paste option instead.");
     });
   });
-
-  // Runs on every focus / visibilitychange / pageshow / qualifying touch.
-  // Imports new clipboard text immediately, with no confirmation prompt.
-  function checkClipboardOnFocus(){
-    if (!clipboardApiAvailable()){
-      showFallbackClipboardButton();
-      return;
-    }
-    navigator.clipboard.readText().then(function(text){
-      hideFallbackClipboardButton(); // a successful read means auto-access works
-      if (!text || !text.trim()) return;
-      if (text === lastSeenClipboardText) return; // never import the same clipboard twice
-      importClipboardText(text);
-    }).catch(function(){
-      // Blocked without a qualifying gesture (common on iOS Safari) — fall back quietly.
-      showFallbackClipboardButton();
-    });
-  }
-
-  window.addEventListener("focus", checkClipboardOnFocus);
-  window.addEventListener("pageshow", checkClipboardOnFocus);
-  document.addEventListener("visibilitychange", function(){
-    if (document.visibilityState === "visible") checkClipboardOnFocus();
-  });
-
-  // Touch-gesture fallback: iOS treats a touch as a real user gesture, so
-  // this is the most reliable trigger when the events above get silently
-  // blocked. Throttled so normal scrolling/tapping doesn't hammer the API.
-  var lastTouchClipboardCheck = 0;
-  document.addEventListener("touchstart", function(){
-    var now = Date.now();
-    if (now - lastTouchClipboardCheck < 1500) return;
-    lastTouchClipboardCheck = now;
-    checkClipboardOnFocus();
-  }, { passive: true });
 
   // ---------- Web OCR (optional, lazy-loaded Tesseract.js) ----------
 
@@ -1501,10 +1463,8 @@
     var ok = performSave();
     if (ok){
       resetEntryFields();
-      suiteInput.blur();
-      companyInput.blur();
       entrySection.scrollIntoView({ behavior: "smooth", block: "start" });
-      checkClipboardOnFocus(); // start waiting for the next clipboard text right away
+      setTimeout(function(){ appleOcrPaste.focus(); }, 150);
     }
   });
 
@@ -1723,7 +1683,6 @@
   renderRows();
   updateStatusBar();
   updateUndoButtonState();
-  checkClipboardOnFocus();
 
 })();
 </script>
