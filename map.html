@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1c2024">
+<title>Map / Route Planner — Building Survey Scanner</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<style>
+  :root{
+    --ink:#1c2024;
+    --paper:#f3f1ec;
+    --panel:#ffffff;
+    --line:#d8d4cb;
+    --safety:#e0631e;
+    --safety-dark:#b94f15;
+    --go:#2f6b46;
+    --go-dark:#234f34;
+    --stop:#a23b32;
+    --muted:#6b6660;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--paper); color:var(--ink); font-family:var(--sans);}
+  body{ padding-bottom:40px; -webkit-text-size-adjust:100%; }
+
+  .stripe{
+    height:6px;
+    background:repeating-linear-gradient(45deg, var(--safety) 0 14px, var(--ink) 14px 28px);
+  }
+  header{
+    padding:12px 16px 10px;
+    background:var(--ink);
+    color:#f3f1ec;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+  }
+  header h1{ margin:0; font-size:1.05rem; letter-spacing:0.02em; font-weight:700; }
+  header .sub{ margin-top:2px; font-size:0.72rem; color:#b9b3a6; font-family:var(--mono); }
+  header a.back-link{
+    flex:0 0 auto;
+    font-size:0.74rem;
+    font-weight:700;
+    color:#f3f1ec;
+    text-decoration:none;
+    border:2px solid #4a4f54;
+    border-radius:8px;
+    padding:6px 10px;
+    white-space:nowrap;
+  }
+  header a.back-link:active{ background:#2a2f34; }
+
+  main{ padding:12px; max-width:680px; margin:0 auto; }
+
+  section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px;
+    margin-bottom:12px;
+  }
+  section h2{
+    margin:0 0 8px;
+    font-size:0.7rem;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-weight:700;
+  }
+
+  label{
+    display:block;
+    font-size:0.76rem;
+    font-weight:600;
+    color:var(--muted);
+    margin:8px 0 4px;
+  }
+  label:first-of-type{ margin-top:0; }
+
+  select, input[type="text"]{
+    width:100%;
+    font-size:1rem;
+    padding:11px 10px;
+    border:2px solid var(--line);
+    border-radius:10px;
+    background:#fbfaf7;
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-appearance:none;
+  }
+
+  .btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    width:100%;
+    min-height:52px;
+    font-size:1rem;
+    font-weight:700;
+    border:none;
+    border-radius:12px;
+    margin-top:8px;
+    cursor:pointer;
+    color:#fff;
+    text-decoration:none;
+    box-sizing:border-box;
+    -webkit-appearance:none;
+  }
+  .btn:active{ transform:scale(0.985); }
+  .btn:first-child{ margin-top:0; }
+  .btn:disabled{ opacity:0.45; cursor:not-allowed; transform:none; }
+  .btn-primary{ background:var(--safety); }
+  .btn-primary:active{ background:var(--safety-dark); }
+  .btn-save{ background:var(--go); }
+  .btn-save:active{ background:var(--go-dark); }
+  .btn-ghost{ background:#fff; color:var(--ink); border:2px solid var(--line); }
+  .btn-stop{ background:var(--stop); }
+
+  .hint{ font-size:0.74rem; color:var(--muted); margin-top:6px; line-height:1.4; }
+
+  .filter-row{ display:flex; gap:8px; }
+  .filter-row .filter-field{ flex:1; min-width:0; }
+
+  #geocodeStatus{
+    font-size:0.78rem;
+    color:var(--muted);
+    font-family:var(--mono);
+    margin-top:8px;
+    min-height:1.1em;
+  }
+
+  /* map */
+  #mapSection{ padding:8px; }
+  #mapEl{
+    width:100%;
+    height:380px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:#e4e1d8;
+  }
+  .leaflet-popup-content{ font-family:var(--sans); font-size:0.85rem; min-width:180px; }
+  .popup-card strong{ font-size:0.92rem; }
+  .popup-status{
+    display:inline-block;
+    font-size:0.68rem;
+    font-weight:700;
+    background:var(--line);
+    color:var(--ink);
+    border-radius:999px;
+    padding:1px 8px;
+    margin-top:4px;
+  }
+  .popup-notes{ font-size:0.78rem; color:var(--muted); margin-top:4px; }
+  .popup-actions{ display:flex; gap:8px; margin-top:8px; }
+  .popup-actions a{
+    flex:1;
+    text-align:center;
+    font-size:0.76rem;
+    font-weight:700;
+    color:#fff;
+    background:var(--ink);
+    border-radius:7px;
+    padding:6px 4px;
+    text-decoration:none;
+  }
+  .popup-visit-btn{
+    width:100%;
+    margin-top:8px;
+    min-height:34px;
+    border-radius:7px;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-weight:700;
+    font-size:0.76rem;
+    cursor:pointer;
+  }
+
+  /* building list */
+  .map-row{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    margin-bottom:8px;
+    background:#fbfaf7;
+  }
+  .map-row-main{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .map-row-name{ font-weight:700; font-size:0.94rem; }
+  .map-row-check{ color:var(--go); font-weight:700; font-size:0.8rem; flex:0 0 auto; }
+  .map-row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
+  .map-row-status{
+    display:inline-block;
+    font-size:0.66rem;
+    font-weight:700;
+    background:var(--line);
+    color:var(--ink);
+    border-radius:999px;
+    padding:1px 8px;
+    margin-top:5px;
+  }
+  .map-row-notes{ font-size:0.78rem; color:var(--muted); margin-top:4px; font-style:italic; }
+  .map-row-warn{ font-size:0.74rem; color:var(--safety-dark); margin-top:4px; }
+  .map-row-actions{ display:flex; gap:6px; margin-top:8px; }
+  .map-row-actions a, .map-row-actions button{
+    flex:1;
+    text-align:center;
+    font-size:0.72rem;
+    font-weight:700;
+    border-radius:7px;
+    padding:7px 4px;
+    text-decoration:none;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .map-row-actions .visit-btn.done{ background:var(--go); color:#fff; border-color:var(--go); }
+  .map-row-actions button:active, .map-row-actions a:active{ background:var(--paper); }
+
+  .empty{ text-align:center; color:var(--muted); font-size:0.86rem; padding:18px 4px; }
+  .count-pill{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:0.7rem;
+    background:var(--ink);
+    color:#fff;
+    border-radius:999px;
+    padding:2px 9px;
+    margin-left:6px;
+  }
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:0.7rem;
+    padding:10px 16px 30px;
+    font-family:var(--mono);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>MAP / ROUTE PLANNER</h1>
+    <div class="sub">planning only · separate from scanning</div>
+  </div>
+  <a class="back-link" href="index.html">← Scanner</a>
+</header>
+<div class="stripe"></div>
+
+<main>
+
+  <a class="btn btn-ghost" id="backToScannerBtn" href="index.html">← Back to Scanner</a>
+
+  <section>
+    <h2>Import Buildings</h2>
+    <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none;">
+    <button class="btn btn-primary" id="importBtn">📂 IMPORT CSV</button>
+    <div class="hint">
+      Columns recognized (any order, header names matched loosely): <strong>Building Name, Address, City, State, Zip, Notes, Status</strong>.
+      Importing replaces the current list — your geocoded locations are cached, so re-importing the same addresses won't re-locate them.
+    </div>
+    <div class="hint">⚠ For "Visited" syncing with the Scanner page to work, each CSV <strong>Address</strong> needs to match the Building address you use on the Scanner page (matching ignores case and extra spaces).</div>
+    <button class="btn btn-ghost" id="geocodeBtn">📍 LOCATE IMPORTED BUILDINGS</button>
+    <div id="geocodeStatus"></div>
+    <button class="btn btn-stop" id="clearImportBtn">🗑 CLEAR IMPORTED LIST</button>
+  </section>
+
+  <section>
+    <h2>Filters</h2>
+    <div class="filter-row">
+      <div class="filter-field">
+        <label for="statusFilter">Status</label>
+        <select id="statusFilter">
+          <option value="">All statuses</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="visitedFilter">Visited</label>
+        <select id="visitedFilter">
+          <option value="">All</option>
+          <option value="visited">Visited only</option>
+          <option value="not">Not visited</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint">"Visited" is shared with the main scanner's "Mark Building Complete" — matched by the Address column, so marking a building complete on either page updates the other.</div>
+  </section>
+
+  <section id="mapSection">
+    <div id="mapEl"></div>
+  </section>
+
+  <section>
+    <h2>Buildings <span class="count-pill" id="bldCount">0</span></h2>
+    <div id="bldListWrap">
+      <div class="empty">No buildings imported yet. Import a CSV above to get started.</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Map tiles &amp; geocoding by OpenStreetMap (free, no account). Locating buildings needs internet; everything else is saved locally on this device.
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var BUILDINGS_KEY = "bss_map_buildings_v1";
+  var GEOCODE_CACHE_KEY = "bss_geocode_cache_v1";
+  var COMPLETED_KEY = "bss_completed_v1"; // shared with the main scanner page
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  var csvInput = $("csvInput");
+  var importBtn = $("importBtn");
+  var geocodeBtn = $("geocodeBtn");
+  var geocodeStatus = $("geocodeStatus");
+  var clearImportBtn = $("clearImportBtn");
+  var statusFilter = $("statusFilter");
+  var visitedFilter = $("visitedFilter");
+  var bldCount = $("bldCount");
+  var bldListWrap = $("bldListWrap");
+
+  var buildings = [];
+  var markersById = {};
+
+  // ---------- shared storage helpers ----------
+
+  function loadJson(key, fallback){
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e){
+      return fallback;
+    }
+  }
+  function saveJson(key, val){
+    try { localStorage.setItem(key, JSON.stringify(val)); }
+    catch (e){ alert("Couldn't save — local storage may be full or disabled."); }
+  }
+
+  function saveBuildings(){ saveJson(BUILDINGS_KEY, buildings); }
+
+  function normalizeBuilding(b){
+    return (b || "").trim().toLowerCase();
+  }
+  function getCompletedList(){
+    return loadJson(COMPLETED_KEY, []);
+  }
+  function isVisited(building){
+    return getCompletedList().indexOf(normalizeBuilding(building)) !== -1;
+  }
+  function toggleVisited(building){
+    var norm = normalizeBuilding(building);
+    var list = getCompletedList();
+    var idx = list.indexOf(norm);
+    if (idx >= 0){ list.splice(idx, 1); } else { list.push(norm); }
+    saveJson(COMPLETED_KEY, list);
+  }
+
+  function getGeocodeCache(){ return loadJson(GEOCODE_CACHE_KEY, {}); }
+  function saveGeocodeCache(c){ saveJson(GEOCODE_CACHE_KEY, c); }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ---------- CSV import ----------
+
+  function parseCsv(text){
+    var rows = [];
+    var row = [];
+    var field = "";
+    var inQuotes = false;
+    var i = 0, len = text.length;
+    while (i < len){
+      var c = text[i];
+      if (inQuotes){
+        if (c === '"'){
+          if (text[i + 1] === '"'){ field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      } else {
+        if (c === '"'){ inQuotes = true; i++; continue; }
+        if (c === ','){ row.push(field); field = ""; i++; continue; }
+        if (c === '\r'){ i++; continue; }
+        if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+        field += c; i++; continue;
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    return rows.filter(function(r){ return r.length > 1 || (r.length === 1 && r[0].trim() !== ""); });
+  }
+
+  function mapHeaders(headerRow){
+    var map = {};
+    headerRow.forEach(function(h, idx){
+      var key = (h || "").trim().toLowerCase();
+      if (map.name === undefined && /name/.test(key)) map.name = idx;
+      else if (map.address === undefined && /(address|addr)/.test(key)) map.address = idx;
+      else if (map.city === undefined && /city/.test(key)) map.city = idx;
+      else if (map.state === undefined && /state/.test(key)) map.state = idx;
+      else if (map.zip === undefined && /(zip|postal)/.test(key)) map.zip = idx;
+      else if (map.notes === undefined && /note/.test(key)) map.notes = idx;
+      else if (map.status === undefined && /status/.test(key)) map.status = idx;
+    });
+    return map;
+  }
+
+  function importCsvText(text){
+    var rows = parseCsv(text);
+    if (!rows.length){
+      alert("That CSV looks empty.");
+      return;
+    }
+    var headerMap = mapHeaders(rows[0]);
+    if (headerMap.address === undefined){
+      alert("Couldn't find an Address column. Make sure your CSV has a header row with at least an Address column.");
+      return;
+    }
+
+    if (buildings.length){
+      var ok = confirm("Importing will replace your current list of " + buildings.length + " building(s). Continue?");
+      if (!ok) return;
+    }
+
+    var imported = [];
+    for (var i = 1; i < rows.length; i++){
+      var r = rows[i];
+      var get = function(key){
+        var idx = headerMap[key];
+        return (idx !== undefined && r[idx] !== undefined) ? r[idx].trim() : "";
+      };
+      var address = get("address");
+      if (!address) continue;
+      imported.push({
+        id: "b" + i,
+        name: get("name"),
+        address: address,
+        city: get("city"),
+        state: get("state"),
+        zip: get("zip"),
+        notes: get("notes"),
+        status: get("status"),
+        lat: null,
+        lng: null,
+        geocodeFailed: false
+      });
+    }
+
+    if (!imported.length){
+      alert("No rows with an Address value were found.");
+      return;
+    }
+
+    buildings = imported;
+    saveBuildings();
+    renderAll();
+    alert("Imported " + imported.length + " building(s). Tap \"Locate Imported Buildings\" to put them on the map.");
+  }
+
+  importBtn.addEventListener("click", function(){
+    csvInput.value = "";
+    csvInput.click();
+  });
+
+  csvInput.addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){ importCsvText(ev.target.result || ""); };
+    reader.readAsText(file);
+  });
+
+  clearImportBtn.addEventListener("click", function(){
+    if (!buildings.length){
+      alert("There's nothing imported yet.");
+      return;
+    }
+    var ok = confirm("Clear all " + buildings.length + " imported building(s)? This only clears this planner's list — it does not affect your saved scan entries or visited marks.");
+    if (!ok) return;
+    buildings = [];
+    saveBuildings();
+    renderAll();
+  });
+
+  // ---------- geocoding (free OpenStreetMap Nominatim, rate-limited) ----------
+
+  function fullAddressKey(b){
+    return [b.address, b.city, b.state, b.zip].filter(Boolean).join(", ").trim().toLowerCase();
+  }
+
+  function sleep(ms){
+    return new Promise(function(resolve){ setTimeout(resolve, ms); });
+  }
+
+  function geocodeOne(query){
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query);
+    return fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function(res){
+        if (!res.ok) throw new Error("geocode http error");
+        return res.json();
+      })
+      .then(function(data){
+        if (!data || !data.length) return null;
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      });
+  }
+
+  function countPending(){
+    var cache = getGeocodeCache();
+    return buildings.filter(function(b){
+      return b.lat == null && !cache[fullAddressKey(b)];
+    }).length;
+  }
+
+  function updateGeocodeHint(){
+    var pending = countPending();
+    if (!buildings.length){
+      geocodeStatus.textContent = "";
+    } else if (pending > 0){
+      geocodeStatus.textContent = pending + " building(s) not yet located.";
+    } else {
+      geocodeStatus.textContent = "All buildings located.";
+    }
+  }
+
+  geocodeBtn.addEventListener("click", function(){
+    runGeocoding();
+  });
+
+  function runGeocoding(){
+    if (!buildings.length){
+      alert("Import a CSV first.");
+      return;
+    }
+    var cache = getGeocodeCache();
+    var toFetch = [];
+
+    buildings.forEach(function(b){
+      if (b.lat != null) return;
+      var key = fullAddressKey(b);
+      if (cache[key]){
+        b.lat = cache[key].lat;
+        b.lng = cache[key].lng;
+        b.geocodeFailed = false;
+      } else {
+        toFetch.push(b);
+      }
+    });
+    saveBuildings();
+    renderAll();
+
+    if (!toFetch.length){
+      updateGeocodeHint();
+      return;
+    }
+
+    geocodeBtn.disabled = true;
+    importBtn.disabled = true;
+
+    var i = 0;
+    function next(){
+      if (i >= toFetch.length){
+        geocodeBtn.disabled = false;
+        importBtn.disabled = false;
+        updateGeocodeHint();
+        saveBuildings();
+        renderAll();
+        return;
+      }
+      var b = toFetch[i];
+      geocodeStatus.textContent = "Locating " + (i + 1) + " of " + toFetch.length + ": " + (b.name || b.address) + "…";
+      var key = fullAddressKey(b);
+      geocodeOne(key).then(function(result){
+        if (result){
+          b.lat = result.lat;
+          b.lng = result.lng;
+          cache[key] = result;
+          saveGeocodeCache(cache);
+        } else {
+          b.geocodeFailed = true;
+        }
+      }).catch(function(){
+        b.geocodeFailed = true;
+      }).then(function(){
+        saveBuildings();
+        renderMarkersOnly();
+        i++;
+        if (i < toFetch.length){
+          sleep(1100).then(next);
+        } else {
+          next();
+        }
+      });
+    }
+    next();
+  }
+
+  // ---------- map (Leaflet + marker clustering) ----------
+
+  var map = L.map("mapEl", { scrollWheelZoom: true }).setView([39.5, -98.35], 4);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+  var clusterGroup = L.markerClusterGroup();
+  map.addLayer(clusterGroup);
+
+  function mapsLinks(b){
+    var apple, google;
+    if (b.lat != null){
+      var label = encodeURIComponent(b.name || b.address);
+      apple = "https://maps.apple.com/?q=" + label + "&ll=" + b.lat + "," + b.lng;
+      google = "https://www.google.com/maps/search/?api=1&query=" + b.lat + "," + b.lng;
+    } else {
+      var q = encodeURIComponent([b.address, b.city, b.state, b.zip].filter(Boolean).join(", "));
+      apple = "https://maps.apple.com/?q=" + q;
+      google = "https://www.google.com/maps/search/?api=1&query=" + q;
+    }
+    return { apple: apple, google: google };
+  }
+
+  function buildPopupHtml(b){
+    var visited = isVisited(b.address);
+    var addrFull = [b.address, b.city, (b.state + " " + b.zip).trim()].filter(Boolean).join(", ");
+    var links = mapsLinks(b);
+    return '<div class="popup-card" data-id="' + b.id + '">' +
+      "<strong>" + escapeHtml(b.name || "(no name)") + "</strong><br>" +
+      escapeHtml(addrFull) +
+      (b.status ? '<br><span class="popup-status">' + escapeHtml(b.status) + "</span>" : "") +
+      (b.notes ? '<div class="popup-notes">' + escapeHtml(b.notes) + "</div>" : "") +
+      '<div class="popup-actions">' +
+        '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple Maps</a>' +
+        '<a href="' + links.google + '" target="_blank" rel="noopener">Google Maps</a>' +
+      "</div>" +
+      '<button class="popup-visit-btn" data-id="' + b.id + '">' +
+        (visited ? "✓ Visited — tap to unmark" : "Mark Visited") +
+      "</button>" +
+    "</div>";
+  }
+
+  function wirePopup(marker, b){
+    marker.on("popupopen", function(e){
+      var el = e.popup.getElement();
+      if (!el) return;
+      var btn = el.querySelector(".popup-visit-btn");
+      if (btn){
+        btn.addEventListener("click", function(){
+          toggleVisited(b.address);
+          marker.setPopupContent(buildPopupHtml(b));
+          renderBuildingList();
+        });
+      }
+    });
+  }
+
+  function getFilteredBuildings(){
+    var statusVal = statusFilter.value;
+    var visitedVal = visitedFilter.value;
+    return buildings.filter(function(b){
+      if (statusVal && (b.status || "") !== statusVal) return false;
+      if (visitedVal === "visited" && !isVisited(b.address)) return false;
+      if (visitedVal === "not" && isVisited(b.address)) return false;
+      return true;
+    });
+  }
+
+  function renderMarkersOnly(){
+    clusterGroup.clearLayers();
+    markersById = {};
+    var filtered = getFilteredBuildings();
+    var bounds = [];
+    filtered.forEach(function(b){
+      if (b.lat == null) return;
+      var marker = L.marker([b.lat, b.lng]);
+      marker.bindPopup(buildPopupHtml(b));
+      wirePopup(marker, b);
+      clusterGroup.addLayer(marker);
+      markersById[b.id] = marker;
+      bounds.push([b.lat, b.lng]);
+    });
+    if (bounds.length === 1){
+      map.setView(bounds[0], 14);
+    } else if (bounds.length > 1){
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+  }
+
+  // ---------- status filter options ----------
+
+  function refreshStatusOptions(){
+    var current = statusFilter.value;
+    var distinct = [];
+    buildings.forEach(function(b){
+      var s = (b.status || "").trim();
+      if (s && distinct.indexOf(s) === -1) distinct.push(s);
+    });
+    distinct.sort(function(a, b){ return a.localeCompare(b); });
+    var html = '<option value="">All statuses</option>';
+    distinct.forEach(function(s){
+      html += '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + "</option>";
+    });
+    statusFilter.innerHTML = html;
+    if (distinct.indexOf(current) !== -1) statusFilter.value = current;
+  }
+
+  // ---------- building list ----------
+
+  function renderBuildingList(){
+    var filtered = getFilteredBuildings();
+    bldCount.textContent = filtered.length + (filtered.length !== buildings.length ? " / " + buildings.length : "");
+
+    if (!buildings.length){
+      bldListWrap.innerHTML = '<div class="empty">No buildings imported yet. Import a CSV above to get started.</div>';
+      return;
+    }
+    if (!filtered.length){
+      bldListWrap.innerHTML = '<div class="empty">No buildings match the current filters.</div>';
+      return;
+    }
+
+    var html = "";
+    filtered.forEach(function(b){
+      var visited = isVisited(b.address);
+      var links = mapsLinks(b);
+      var addrLine = [b.address, b.city, b.state].filter(Boolean).join(", ");
+      html += '<div class="map-row" data-id="' + b.id + '">' +
+        '<div class="map-row-main">' +
+          '<span class="map-row-name">' + escapeHtml(b.name || b.address) + "</span>" +
+          (visited ? '<span class="map-row-check">✓ Visited</span>' : "") +
+        "</div>" +
+        '<div class="map-row-sub">' + escapeHtml(addrLine) + "</div>" +
+        (b.status ? '<div class="map-row-status">' + escapeHtml(b.status) + "</div>" : "") +
+        (b.notes ? '<div class="map-row-notes">' + escapeHtml(b.notes) + "</div>" : "") +
+        (b.lat == null ? '<div class="map-row-warn">⚠ ' + (b.geocodeFailed ? "Couldn't locate this address" : "Not located yet") + "</div>" : "") +
+        '<div class="map-row-actions">' +
+          '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple</a>' +
+          '<a href="' + links.google + '" target="_blank" rel="noopener">Google</a>' +
+          '<button type="button" class="visit-btn' + (visited ? " done" : "") + '" data-id="' + b.id + '">' + (visited ? "Unmark" : "Visited") + "</button>" +
+        "</div>" +
+      "</div>";
+    });
+    bldListWrap.innerHTML = html;
+
+    bldListWrap.querySelectorAll(".map-row").forEach(function(row){
+      row.addEventListener("click", function(e){
+        if (e.target.closest("a") || e.target.closest("button")) return;
+        var id = row.getAttribute("data-id");
+        var marker = markersById[id];
+        if (marker){
+          map.setView(marker.getLatLng(), 16);
+          marker.openPopup();
+        }
+      });
+    });
+
+    bldListWrap.querySelectorAll(".visit-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-id");
+        var b = buildings.filter(function(x){ return x.id === id; })[0];
+        if (!b) return;
+        toggleVisited(b.address);
+        renderAll();
+      });
+    });
+  }
+
+  // ---------- render everything ----------
+
+  function renderAll(){
+    refreshStatusOptions();
+    renderMarkersOnly();
+    renderBuildingList();
+    updateGeocodeHint();
+  }
+
+  statusFilter.addEventListener("change", function(){
+    renderMarkersOnly();
+    renderBuildingList();
+  });
+  visitedFilter.addEventListener("change", function(){
+    renderMarkersOnly();
+    renderBuildingList();
+  });
+
+  // ---------- init ----------
+
+  buildings = loadJson(BUILDINGS_KEY, []);
+  renderAll();
+
+})();
+</script>
+
+</body>
+</html>

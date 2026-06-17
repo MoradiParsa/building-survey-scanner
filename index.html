@@ -669,8 +669,8 @@
 
   <section>
     <h2>Planning</h2>
-    <a class="btn btn-ghost" id="mapPlannerLink" href="map.html" target="_blank" rel="noopener">🗺️ Map / Route Planner</a>
-    <div class="hint">Opens in a new tab, so your scanning page stays exactly as you left it. Import a CSV of buildings, see them on a map, and plan routes — separate from day-to-day scanning.</div>
+    <a class="btn btn-ghost" id="mapPlannerLink" href="map.html">🗺️ Map / Route Planner</a>
+    <div class="hint">Opens in this same window. Your current building, pasted text, and unsaved fields are kept and restored automatically when you come back using the "← Scanner" button on that page.</div>
   </section>
 
 </main>
@@ -739,6 +739,7 @@
   var FLOOR_KEY = "bss_floor_v1";
   var UNDO_KEY = "bss_undo_v1";
   var COMPLETED_KEY = "bss_completed_v1";
+  var DRAFT_KEY = "bss_draft_v1";
 
   var $ = function(id){ return document.getElementById(id); };
 
@@ -838,6 +839,51 @@
     if (b) buildingInput.value = b;
     if (f) floorInput.value = f;
   }
+
+  // ---------- in-progress entry draft ----------
+  // Keeps whatever's currently pasted/typed-but-not-yet-saved so that
+  // navigating to the Map / Route Planner page and back never loses it —
+  // a normal page navigation would otherwise reset all of this.
+
+  function saveDraft(){
+    var draft = {
+      paste: appleOcrPaste.value,
+      suite: suiteInput.value,
+      company: companyInput.value,
+      sf: sfInput.value,
+      notes: notesInput.value,
+      raw: rawText.value,
+      hintShown: parseHint.classList.contains("show"),
+      hintText: parseHint.textContent
+    };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch (e){ /* ignore */ }
+  }
+
+  function restoreDraft(){
+    var raw;
+    try { raw = localStorage.getItem(DRAFT_KEY); } catch (e){ return; }
+    if (!raw) return;
+    var draft;
+    try { draft = JSON.parse(raw); } catch (e){ return; }
+    appleOcrPaste.value = draft.paste || "";
+    suiteInput.value = draft.suite || "";
+    companyInput.value = draft.company || "";
+    sfInput.value = draft.sf || "";
+    notesInput.value = draft.notes || "";
+    rawText.value = draft.raw || "";
+    if (draft.hintShown){
+      parseHint.textContent = draft.hintText || "";
+      parseHint.classList.add("show");
+    }
+  }
+
+  function clearDraft(){
+    localStorage.removeItem(DRAFT_KEY);
+  }
+
+  [appleOcrPaste, suiteInput, companyInput, sfInput, notesInput].forEach(function(field){
+    field.addEventListener("input", saveDraft);
+  });
 
   buildingInput.addEventListener("input", function(){
     localStorage.setItem(BUILDING_KEY, buildingInput.value);
@@ -1120,6 +1166,7 @@
       hideParseHint();
       setClipboardStatus("✓ Text imported and parsed", "success", true);
     }
+    saveDraft();
     focusAppropriateField();
   }
 
@@ -1134,6 +1181,7 @@
     notesInput.value = "";
     sfInput.value = "";
     hideParseHint();
+    clearDraft();
     suiteInput.focus();
   }
 
@@ -1320,6 +1368,7 @@
 
   qVacant.addEventListener("click", function(){
     companyInput.value = "VACANT";
+    saveDraft();
     if (!suiteInput.value.trim()){
       suiteInput.focus();
     } else {
@@ -1386,6 +1435,7 @@
     rawText.value = "";
     rawText.placeholder = RAW_PLACEHOLDER;
     hideParseHint();
+    clearDraft();
   }
 
   // Returns true if a save actually happened, false if validation failed
@@ -1685,6 +1735,7 @@
   // ---------- init ----------
 
   restoreJobFields();
+  restoreDraft();
   renderAreaTabs();
   renderBuildingPicker();
   updateMarkCompleteButton();
