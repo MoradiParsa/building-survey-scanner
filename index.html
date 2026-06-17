@@ -148,6 +148,13 @@
     color:var(--ink);
     border-style:solid;
   }
+  textarea#company{
+    min-height:84px;
+    font-family:var(--sans);
+    font-size:1.05rem;
+    color:var(--ink);
+    border-style:solid;
+  }
   textarea.paste-box{
     min-height:140px;
     font-family:var(--sans);
@@ -382,7 +389,7 @@
     vertical-align:top;
   }
   td.suite{ font-family:var(--mono); font-weight:700; white-space:nowrap; }
-  td.company{ color:var(--ink); }
+  td.company{ color:var(--ink); white-space:pre-line; }
   td.actions{ text-align:right; white-space:nowrap; }
   .row-btn{
     border:none;
@@ -558,7 +565,7 @@
     <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
 
     <label for="company">Company name</label>
-    <input type="text" id="company" placeholder="e.g. Acme Logistics, LLC" autocomplete="off">
+    <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines."></textarea>
 
     <div class="quickgrid">
       <button type="button" id="qVacant">VACANT</button>
@@ -567,8 +574,11 @@
       <button type="button" id="qDirectory">DIRECTORY ONLY</button>
     </div>
 
+    <label for="sf">Square footage (optional)</label>
+    <input type="text" id="sf" placeholder="e.g. 1,200" autocomplete="off">
+
     <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
-    <textarea id="notes" placeholder="Any remarks. Auto-filled with raw text if the company name wasn't clear. You can dictate this with the iPhone keyboard's mic button."></textarea>
+    <textarea id="notes" placeholder="Any remarks. You can dictate this with the iPhone keyboard's mic button."></textarea>
 
     <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
     <button class="btn btn-ghost" id="saveBtn">✔ SAVE ROW (STOP HERE)</button>
@@ -689,6 +699,7 @@
   var parseHint = $("parseHint");
   var suiteInput = $("suite");
   var companyInput = $("company");
+  var sfInput = $("sf");
   var notesInput = $("notes");
   var rawText = $("rawText");
   var saveBtn = $("saveBtn");
@@ -1019,9 +1030,10 @@
     rawText.value = parsed.raw;
     suiteInput.value = parsed.suite;
     companyInput.value = parsed.company;
-    notesInput.value = parsed.notes;
-    if (parsed.notes){
-      showParseHint("Couldn't confidently identify a company name. Raw text was copied into Notes below — please check it and type the company name in manually.");
+    notesInput.value = "";
+    sfInput.value = "";
+    if (!parsed.suite && !parsed.company){
+      showParseHint("Couldn't find any suite numbers or company text in this content. Check the raw text below and enter details manually.");
     } else {
       hideParseHint();
     }
@@ -1037,6 +1049,7 @@
     suiteInput.value = "";
     companyInput.value = "";
     notesInput.value = "";
+    sfInput.value = "";
     hideParseHint();
     openReview();
   }
@@ -1217,7 +1230,8 @@
         }
       }).then(function(result){
         hideStatus();
-        var parsed = parseOcrResult(result);
+        var text = (result && result.data && result.data.text) || "";
+        var parsed = parseRawText(text);
         applyParsedToReview(parsed);
       }).catch(function(err){
         hideStatus();
@@ -1228,6 +1242,7 @@
         suiteInput.value = "";
         companyInput.value = "";
         notesInput.value = "";
+        sfInput.value = "";
         hideParseHint();
         openReview();
       });
@@ -1256,211 +1271,44 @@
   });
   qDirectory.addEventListener("click", function(){ applyQuickLabel("DIRECTORY ONLY"); });
 
-  // ---------- text parsing (shared by Apple OCR Paste and Web OCR) ----------
+  // ---------- text parsing (shared by Apple OCR Paste, Clipboard, and Web OCR) ----------
+  //
+  // New rule set (every line is kept, nothing is discarded):
+  //   - Any line containing at least one digit -> Suite Number (all such
+  //     lines/tokens are kept, joined together). Letters directly touching
+  //     digits (12A, PH1, A120, 1200B) are left completely intact.
+  //   - Only the standalone label words "Suite", "Ste", "Room" are stripped,
+  //     and only when they appear as separate words (not letter-glued to a
+  //     number) — e.g. "Suite 1200" -> "1200", but "Suite1200" is untouched.
+  //   - Any line with no digit at all -> Company Name, verbatim, one company
+  //     line per source line, joined with line breaks. Punctuation, commas,
+  //     ampersands, apostrophes, periods, hyphens, and capitalization are
+  //     never altered.
 
-  function splitLines(text){
-    return (text || "").split("\n")
-      .map(function(l){ return l.replace(/[|_~`]/g, "").trim(); })
-      .filter(function(l){ return l.length > 0; });
-  }
+  var LABEL_WORD_REGEX = /\b(suite|ste|room)\b\.?/gi;
 
-  // Words/phrases that label a plaque field rather than naming a tenant.
-  var STOPWORD_REGEX = /\b(suite|ste|ofc|office|floor|fl|level|lvl|tenant|room|rm|unit)\b/gi;
-
-  // Keyword that typically introduces a suite number.
-  var SUITE_KEYWORD_LINE_REGEX = /\b(suite|ste|ofc|office|room|rm|unit|no\.?)\s*[:#-]?\s*(\d{1,4}(?:[-.]\d{1,4})?[a-z]?)\b/i;
-  var HASH_LINE_REGEX = /#\s*(\d{1,4}(?:[-.]\d{1,4})?[a-z]?)/;
-
-  // Strip only obvious junk (phone numbers, hours, URLs, emails, stray
-  // symbols). Normal punctuation in real company names — commas, periods,
-  // ampersands, apostrophes, hyphens — is intentionally left alone so the
-  // result stays as close as possible to what's actually on the plaque.
-  function cleanCompanyText(line){
-    var s = line;
-    s = s.replace(/\b(https?:\/\/\S+|www\.\S+)/gi, " ");
-    s = s.replace(/\b[a-z0-9][a-z0-9-]*\.(com|net|org|io|co|biz)\b(\/\S*)?/gi, " ");
-    s = s.replace(/\b[\w.+-]+@[\w-]+\.[a-z]{2,}\b/gi, " ");
-    s = s.replace(/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g, " ");
-    s = s.replace(/\b\d{1,2}(:\d{2})?\s?(am|pm)\b/gi, " ");
-    s = s.replace(/\b(mon|tue|tues|wed|wedn|thu|thur|thurs|fri|sat|sun)[a-z]*\.?\s*(-|to|–)\s*(mon|tue|tues|wed|wedn|thu|thur|thurs|fri|sat|sun)[a-z]*\.?\b/gi, " ");
-    s = s.replace(/[•·~`_|]+/g, " ");
-    s = s.replace(/[,.;:]{2,}/g, " ");
-    s = s.replace(/\s{2,}/g, " ");
-    return s.trim();
-  }
-
-  function buildCompanyAndNotes(lines, suiteLineIndex, rawFullText){
-    var candidates = [];
-    lines.forEach(function(line, idx){
-      if (idx === suiteLineIndex) return;
-      var withoutStop = line.replace(STOPWORD_REGEX, " ");
-      var cleaned = cleanCompanyText(withoutStop);
-      var letters = (cleaned.match(/[A-Za-z]/g) || []).length;
-      if (letters < 2) return; // a stray single letter is OCR noise, not a name
-      candidates.push({ text: cleaned, letters: letters });
-    });
-    candidates.sort(function(a, b){ return b.letters - a.letters; });
-
-    var company = candidates.length ? candidates[0].text : "";
-    var notes = "";
-    if (!company || company.replace(/[^A-Za-z]/g, "").length < 2){
-      company = "";
-      notes = rawFullText.trim();
-    }
-    return { company: company, notes: notes };
-  }
-
-  // Suite detection from plain text/lines (used for both Apple OCR Paste
-  // and as the Web OCR fallback when word coordinates aren't available).
-  function determineSuiteFromText(lines){
-    for (var i = 0; i < lines.length; i++){
-      var m = lines[i].match(SUITE_KEYWORD_LINE_REGEX);
-      if (m) return { suite: m[2].toUpperCase(), lineIndex: i };
-    }
-    for (var j = 0; j < lines.length; j++){
-      var m2 = lines[j].match(HASH_LINE_REGEX);
-      if (m2) return { suite: m2[1].toUpperCase(), lineIndex: j };
-    }
-
-    var allNums = [];
-    lines.forEach(function(line, idx){
-      var re = /\d{1,4}(?:[-.]\d{1,4})?[a-z]?/gi;
-      var mm;
-      while ((mm = re.exec(line))){
-        allNums.push({ text: mm[0], idx: idx });
-      }
-    });
-    if (!allNums.length) return { suite: "", lineIndex: -1 };
-
-    var compound = allNums.filter(function(n){ return /^\d{1,4}[-.]\d{1,4}[a-z]?$/i.test(n.text); });
-    if (compound.length) return { suite: compound[0].text.toUpperCase(), lineIndex: compound[0].idx };
-
-    var midRange = allNums.filter(function(n){
-      var d = n.text.replace(/[^\d]/g, "");
-      return d.length >= 3 && d.length <= 5;
-    });
-    var pool = midRange.length ? midRange : allNums;
-    pool.sort(function(a, b){
-      var na = parseInt(a.text.replace(/[^\d]/g, ""), 10) || 0;
-      var nb = parseInt(b.text.replace(/[^\d]/g, ""), 10) || 0;
-      return nb - na;
-    });
-    return { suite: pool[0].text.toUpperCase(), lineIndex: pool[0].idx };
-  }
-
-  // Preferred suite detection for Web OCR using word-level bounding boxes
-  // from Tesseract, so "closest to the words Suite / Ste / #" is a real
-  // spatial measurement rather than just line order.
-  function determineSuiteFromWords(words, lines){
-    var KEYWORD_RE = /^(suite|ste|ofc|office|room|rm|unit|no|#)$/i;
-    var NUMBER_RE = /^#?\d{1,4}(?:[.\-]\d{1,4})?[a-z]?$/i;
-
-    var items = [];
-    for (var i = 0; i < words.length; i++){
-      var w = words[i];
-      if (!w || !w.text || !w.bbox) continue;
-      var raw = w.text.trim();
-      if (!raw) continue;
-      items.push({
-        raw: raw,
-        x: (w.bbox.x0 + w.bbox.x1) / 2,
-        y: (w.bbox.y0 + w.bbox.y1) / 2
-      });
-    }
-    if (!items.length) return determineSuiteFromText(lines);
-
-    var numberTokens = [];
-    var keywordTokens = [];
-    items.forEach(function(it){
-      var trimmedPunct = it.raw.replace(/^[,:;]+|[,:;]+$/g, "");
-      if (NUMBER_RE.test(trimmedPunct)){
-        numberTokens.push({ text: trimmedPunct, x: it.x, y: it.y });
-      }
-      var kwCandidate = it.raw.replace(/[^A-Za-z#]/g, "").toLowerCase();
-      if (kwCandidate && KEYWORD_RE.test(kwCandidate)){
-        keywordTokens.push({ text: kwCandidate, x: it.x, y: it.y });
-      }
-    });
-
-    if (!numberTokens.length) return determineSuiteFromText(lines);
-
-    var chosen;
-    if (keywordTokens.length){
-      var best = null, bestDist = Infinity;
-      numberTokens.forEach(function(nt){
-        keywordTokens.forEach(function(kt){
-          var dx = nt.x - kt.x, dy = nt.y - kt.y;
-          var d = Math.sqrt(dx * dx + dy * dy);
-          if (d < bestDist){ bestDist = d; best = nt; }
-        });
-      });
-      chosen = best;
-    } else {
-      var compound = numberTokens.filter(function(nt){ return /^\d{1,4}[.\-]\d{1,4}[a-z]?$/i.test(nt.text); });
-      if (compound.length){
-        chosen = compound[0];
-      } else {
-        var midRange = numberTokens.filter(function(nt){
-          var digits = nt.text.replace(/[^\d]/g, "");
-          return digits.length >= 3 && digits.length <= 5;
-        });
-        var pool = midRange.length ? midRange : numberTokens;
-        pool.sort(function(a, b){
-          var na = parseInt(a.text.replace(/[^\d]/g, ""), 10) || 0;
-          var nb = parseInt(b.text.replace(/[^\d]/g, ""), 10) || 0;
-          return nb - na;
-        });
-        chosen = pool[0];
-      }
-    }
-
-    if (!chosen) return determineSuiteFromText(lines);
-
-    var suiteValue = chosen.text.replace(/^#/, "").toUpperCase();
-    var needle = chosen.text.toLowerCase();
-    var lineIndex = -1;
-    for (var li = 0; li < lines.length; li++){
-      if (lines[li].toLowerCase().indexOf(needle) !== -1){
-        lineIndex = li;
-        break;
-      }
-    }
-    return { suite: suiteValue, lineIndex: lineIndex };
-  }
-
-  // Used by Apple OCR Paste: plain pasted text, no coordinates available.
   function parseRawText(text){
-    var lines = splitLines(text);
-    var suiteInfo = determineSuiteFromText(lines);
-    var companyInfo = buildCompanyAndNotes(lines, suiteInfo.lineIndex, text);
-    return {
-      suite: suiteInfo.suite || "",
-      company: companyInfo.company || "",
-      notes: companyInfo.notes || "",
-      raw: text.trim()
-    };
-  }
+    var raw = (text || "");
+    var lines = raw.split("\n")
+      .map(function(l){ return l.trim(); })
+      .filter(function(l){ return l.length > 0; });
 
-  // Used by Web OCR: Tesseract result, with word coordinates when available.
-  function parseOcrResult(result){
-    var text = (result && result.data && result.data.text) || "";
-    var words = (result && result.data && result.data.words) || null;
-    var lines = splitLines(text);
+    var suiteParts = [];
+    var companyLines = [];
 
-    var suiteInfo;
-    if (words && words.length){
-      suiteInfo = determineSuiteFromWords(words, lines);
-    } else {
-      suiteInfo = determineSuiteFromText(lines);
-    }
-
-    var companyInfo = buildCompanyAndNotes(lines, suiteInfo.lineIndex, text);
+    lines.forEach(function(line){
+      if (/\d/.test(line)){
+        var cleaned = line.replace(LABEL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+        if (cleaned) suiteParts.push(cleaned);
+      } else {
+        companyLines.push(line);
+      }
+    });
 
     return {
-      suite: suiteInfo.suite || "",
-      company: companyInfo.company || "",
-      notes: companyInfo.notes || "",
-      raw: text.trim()
+      suite: suiteParts.join(", "),
+      company: companyLines.join("\n"),
+      raw: raw.trim()
     };
   }
 
@@ -1478,6 +1326,7 @@
     suiteInput.value = "";
     companyInput.value = "";
     notesInput.value = "";
+    sfInput.value = "";
     rawText.value = "";
     rawText.placeholder = RAW_PLACEHOLDER;
     hideParseHint();
@@ -1491,6 +1340,7 @@
     var suite = suiteInput.value.trim();
     var company = companyInput.value.trim();
     var notes = notesInput.value.trim();
+    var sf = sfInput.value.trim();
 
     if (!building || !floor){
       alert("Enter the Building address and Floor at the top before saving.");
@@ -1528,6 +1378,7 @@
         floor: floor,
         suite: suite,
         company: company,
+        sf: sf,
         notes: notes,
         savedAt: new Date().toISOString()
       };
@@ -1538,6 +1389,7 @@
         floor: floor,
         suite: suite,
         company: company,
+        sf: sf,
         notes: notes,
         savedAt: new Date().toISOString()
       });
@@ -1631,6 +1483,9 @@
 
     sorted.forEach(function(r){
       var extra = '<div class="hint" style="margin-top:2px;">' + escapeHtml(r.building) + '</div>';
+      if (r.sf){
+        extra += '<div class="hint" style="margin-top:2px;">SF: ' + escapeHtml(r.sf) + '</div>';
+      }
       if (r.notes){
         var notePreview = r.notes.length > 60 ? r.notes.slice(0, 60) + "…" : r.notes;
         extra += '<div class="hint" style="margin-top:2px;">Note: ' + escapeHtml(notePreview) + '</div>';
@@ -1724,10 +1579,10 @@
       return;
     }
 
-    var header = ["Building", "Floor", "Suite", "Company", "Notes", "Saved At"];
+    var header = ["Building", "Floor", "Suite", "Company", "SF", "Notes", "Saved At"];
     var lines = [header.map(csvEscape).join(",")];
     rows.forEach(function(r){
-      lines.push([r.building, r.floor, r.suite, r.company, r.notes || "", r.savedAt].map(csvEscape).join(","));
+      lines.push([r.building, r.floor, r.suite, r.company, r.sf || "", r.notes || "", r.savedAt].map(csvEscape).join(","));
     });
     var csv = lines.join("\r\n");
 
