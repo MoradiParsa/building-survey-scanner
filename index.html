@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1c2024">
+<title>Building Survey Scanner</title>
+<style>
+  :root{
+    --ink:#1c2024;
+    --paper:#f3f1ec;
+    --panel:#ffffff;
+    --line:#d8d4cb;
+    --safety:#e0631e;
+    --safety-dark:#b94f15;
+    --go:#2f6b46;
+    --go-dark:#234f34;
+    --stop:#a23b32;
+    --muted:#6b6660;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--paper); color:var(--ink); font-family:var(--sans);}
+  body{
+    padding-bottom:48px;
+    -webkit-text-size-adjust:100%;
+  }
+  .stripe{
+    height:6px;
+    background:repeating-linear-gradient(45deg, var(--safety) 0 14px, var(--ink) 14px 28px);
+  }
+  header{
+    padding:14px 16px 10px;
+    background:var(--ink);
+    color:#f3f1ec;
+  }
+  header h1{
+    margin:0;
+    font-size:1.15rem;
+    letter-spacing:0.02em;
+    font-weight:700;
+  }
+  header .sub{
+    margin-top:2px;
+    font-size:0.78rem;
+    color:#b9b3a6;
+    font-family:var(--mono);
+  }
+
+  main{ padding:14px; max-width:560px; margin:0 auto; }
+
+  section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px;
+    margin-bottom:14px;
+  }
+  section h2{
+    margin:0 0 10px;
+    font-size:0.72rem;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-weight:700;
+  }
+
+  label{
+    display:block;
+    font-size:0.78rem;
+    font-weight:600;
+    color:var(--muted);
+    margin:10px 0 4px;
+  }
+  label:first-of-type{ margin-top:0; }
+
+  input[type="text"]{
+    width:100%;
+    font-size:1.05rem;
+    padding:14px 12px;
+    border:2px solid var(--line);
+    border-radius:10px;
+    background:#fbfaf7;
+    color:var(--ink);
+    font-family:var(--sans);
+  }
+  input[type="text"]:focus{
+    outline:none;
+    border-color:var(--ink);
+  }
+
+  textarea{
+    width:100%;
+    font-size:0.85rem;
+    font-family:var(--mono);
+    padding:10px;
+    border:2px dashed var(--line);
+    border-radius:10px;
+    background:#fbfaf7;
+    color:var(--muted);
+    min-height:70px;
+    resize:vertical;
+  }
+
+  .btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    width:100%;
+    min-height:60px;
+    font-size:1.08rem;
+    font-weight:700;
+    border:none;
+    border-radius:12px;
+    margin-top:10px;
+    cursor:pointer;
+    color:#fff;
+    -webkit-appearance:none;
+  }
+  .btn:active{ transform:scale(0.985); }
+  .btn:first-child{ margin-top:0; }
+
+  .btn-primary{ background:var(--safety); }
+  .btn-primary:active{ background:var(--safety-dark); }
+
+  .btn-save{ background:var(--go); }
+  .btn-save:active{ background:var(--go-dark); }
+
+  .btn-ghost{
+    background:#fff;
+    color:var(--ink);
+    border:2px solid var(--line);
+  }
+
+  .btn-stop{ background:var(--stop); }
+
+  .btn-row{ display:flex; gap:10px; }
+  .btn-row .btn{ margin-top:10px; }
+
+  .hint{ font-size:0.75rem; color:var(--muted); margin-top:6px; line-height:1.4; }
+
+  #preview{
+    width:100%;
+    max-height:240px;
+    object-fit:contain;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:#000;
+    margin-bottom:10px;
+    display:none;
+  }
+
+  .status{
+    font-family:var(--mono);
+    font-size:0.82rem;
+    color:var(--ink);
+    background:#fbfaf7;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    margin-bottom:10px;
+    display:none;
+  }
+  .status.show{ display:block; }
+  .status .bar{
+    height:6px;
+    background:var(--line);
+    border-radius:3px;
+    margin-top:8px;
+    overflow:hidden;
+  }
+  .status .bar i{
+    display:block;
+    height:100%;
+    width:0%;
+    background:var(--safety);
+    transition:width 0.15s linear;
+  }
+
+  details.raw{ margin-top:8px; }
+  details.raw summary{
+    font-size:0.75rem;
+    color:var(--muted);
+    cursor:pointer;
+    font-weight:600;
+  }
+
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    text-align:left;
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--muted);
+    border-bottom:2px solid var(--line);
+    padding:0 6px 6px;
+  }
+  tbody td{
+    padding:9px 6px;
+    border-bottom:1px solid var(--line);
+    font-size:0.92rem;
+    vertical-align:top;
+  }
+  td.suite{ font-family:var(--mono); font-weight:700; white-space:nowrap; }
+  td.company{ color:var(--ink); }
+  td.del{ text-align:right; white-space:nowrap; }
+  .del-btn{
+    border:none;
+    background:none;
+    color:var(--stop);
+    font-size:1.3rem;
+    line-height:1;
+    padding:4px 6px;
+    cursor:pointer;
+  }
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    font-size:0.88rem;
+    padding:18px 4px;
+  }
+  .count-pill{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:0.7rem;
+    background:var(--ink);
+    color:#fff;
+    border-radius:999px;
+    padding:2px 9px;
+    margin-left:6px;
+  }
+  .origin-note{
+    font-size:0.68rem;
+    color:var(--muted);
+    font-family:var(--mono);
+    text-align:center;
+    padding:0 16px 4px;
+    word-break:break-all;
+  }
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:0.7rem;
+    padding:10px 16px 30px;
+    font-family:var(--mono);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BUILDING SURVEY SCANNER</h1>
+  <div class="sub">field tool · on-device OCR · no accounts, no cloud</div>
+</header>
+<div class="stripe"></div>
+
+<main>
+
+  <section>
+    <h2>Job Setup</h2>
+    <label for="building">Building address</label>
+    <input type="text" id="building" placeholder="e.g. 400 Main St" autocomplete="off">
+    <label for="floor">Floor</label>
+    <input type="text" id="floor" placeholder="e.g. 4 or 4th" autocomplete="off">
+    <div class="hint">Stays filled in between scans on this floor. Change it when you move floors or buildings.</div>
+  </section>
+
+  <section>
+    <h2>Scan a Suite Plaque</h2>
+    <img id="preview" alt="captured plaque preview">
+    <div class="status" id="status">
+      <span id="statusText">Working…</span>
+      <div class="bar"><i id="statusBar"></i></div>
+    </div>
+
+    <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display:none">
+    <button class="btn btn-primary" id="scanBtn">📷 SCAN PLAQUE</button>
+    <button class="btn btn-ghost" id="manualBtn">✏️ ENTER MANUALLY (NO PHOTO)</button>
+  </section>
+
+  <section id="reviewSection" style="display:none;">
+    <h2>Confirm &amp; Edit</h2>
+    <label for="suite">Suite number</label>
+    <input type="text" id="suite" placeholder="e.g. 204" autocomplete="off">
+    <label for="company">Company name</label>
+    <input type="text" id="company" placeholder="e.g. Acme Logistics LLC" autocomplete="off">
+
+    <details class="raw">
+      <summary>Show raw OCR text</summary>
+      <textarea id="rawText" readonly></textarea>
+    </details>
+
+    <button class="btn btn-save" id="saveBtn">✔ SAVE ROW</button>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="retakeBtn">↻ RETAKE</button>
+      <button class="btn btn-stop" id="discardBtn">✕ DISCARD</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Saved Rows <span class="count-pill" id="rowCount">0</span></h2>
+    <div id="rowsWrap">
+      <div class="empty">No rows saved yet. Scan a plaque to get started.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Export</h2>
+    <button class="btn btn-primary" id="exportBtn">⬇ EXPORT CSV</button>
+    <button class="btn btn-ghost" id="clearBtn">🗑 CLEAR ALL SAVED ROWS</button>
+    <div class="hint">CSV downloads straight to your iPhone, ready to AirDrop or attach to email. Only text is stored — no photos are ever saved.</div>
+  </section>
+
+</main>
+
+<div class="origin-note" id="originNote"></div>
+<footer>
+  Rows are saved on this device only, tied to this exact web address.<br>
+  First scan needs internet once to load the free OCR engine, then it's cached for reuse.
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var ROWS_KEY = "bss_rows_v1";
+  var BUILDING_KEY = "bss_building_v1";
+  var FLOOR_KEY = "bss_floor_v1";
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  var buildingInput = $("building");
+  var floorInput = $("floor");
+  var cameraInput = $("cameraInput");
+  var scanBtn = $("scanBtn");
+  var manualBtn = $("manualBtn");
+  var preview = $("preview");
+  var statusBox = $("status");
+  var statusText = $("statusText");
+  var statusBar = $("statusBar");
+  var reviewSection = $("reviewSection");
+  var suiteInput = $("suite");
+  var companyInput = $("company");
+  var rawText = $("rawText");
+  var saveBtn = $("saveBtn");
+  var retakeBtn = $("retakeBtn");
+  var discardBtn = $("discardBtn");
+  var rowsWrap = $("rowsWrap");
+  var rowCount = $("rowCount");
+  var exportBtn = $("exportBtn");
+  var clearBtn = $("clearBtn");
+  var originNote = $("originNote");
+
+  // ---------- storage availability check ----------
+  // GitHub Pages serves over https, so localStorage is reliable here.
+  // We still guard against private-mode / storage-disabled edge cases.
+
+  var storageOk = true;
+  try {
+    localStorage.setItem("bss_test", "1");
+    localStorage.removeItem("bss_test");
+  } catch (e){
+    storageOk = false;
+  }
+
+  if (!storageOk){
+    alert("This browser is blocking local storage (often caused by Private Browsing mode). Turn off Private Browsing and reload, or your saved rows won't persist.");
+  }
+
+  originNote.textContent = "Saving to: " + window.location.host + window.location.pathname;
+
+  // ---------- persistence ----------
+
+  function getRows(){
+    try {
+      var raw = localStorage.getItem(ROWS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveRows(rows){
+    try {
+      localStorage.setItem(ROWS_KEY, JSON.stringify(rows));
+    } catch (e){
+      alert("Could not save — local storage may be full or disabled. Export your CSV now if you have unsaved rows you can still see on screen.");
+    }
+  }
+
+  function restoreJobFields(){
+    var b = localStorage.getItem(BUILDING_KEY);
+    var f = localStorage.getItem(FLOOR_KEY);
+    if (b) buildingInput.value = b;
+    if (f) floorInput.value = f;
+  }
+
+  buildingInput.addEventListener("input", function(){
+    localStorage.setItem(BUILDING_KEY, buildingInput.value);
+  });
+  floorInput.addEventListener("input", function(){
+    localStorage.setItem(FLOOR_KEY, floorInput.value);
+  });
+
+  // ---------- status UI ----------
+
+  function showStatus(msg, pct){
+    statusBox.classList.add("show");
+    statusText.textContent = msg;
+    statusBar.style.width = (pct != null ? pct : 0) + "%";
+  }
+  function hideStatus(){
+    statusBox.classList.remove("show");
+  }
+
+  // ---------- camera / OCR ----------
+
+  scanBtn.addEventListener("click", function(){
+    cameraInput.value = "";
+    cameraInput.click();
+  });
+
+  manualBtn.addEventListener("click", function(){
+    preview.style.display = "none";
+    rawText.value = "";
+    suiteInput.value = "";
+    companyInput.value = "";
+    openReview();
+  });
+
+  cameraInput.addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        var canvas = downscale(img, 1100);
+        preview.src = canvas.toDataURL("image/jpeg", 0.9);
+        preview.style.display = "block";
+        runOcr(canvas);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function downscale(img, maxW){
+    var w = img.width, h = img.height;
+    if (w > maxW){
+      h = Math.round(h * (maxW / w));
+      w = maxW;
+    }
+    var canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas;
+  }
+
+  function runOcr(canvasOrImage){
+    reviewSection.style.display = "none";
+    showStatus("Reading plaque… this can take 10–20 seconds.", 5);
+
+    if (typeof Tesseract === "undefined"){
+      hideStatus();
+      alert("The OCR engine couldn't load (usually no internet for the first-time download). You can still use ENTER MANUALLY below.");
+      rawText.value = "";
+      suiteInput.value = "";
+      companyInput.value = "";
+      openReview();
+      return;
+    }
+
+    Tesseract.recognize(canvasOrImage, "eng", {
+      logger: function(m){
+        if (m.status && typeof m.progress === "number"){
+          var label = m.status.replace(/_/g, " ");
+          showStatus("OCR: " + label + "…", Math.round(m.progress * 100));
+        }
+      }
+    }).then(function(result){
+      var text = (result && result.data && result.data.text) || "";
+      hideStatus();
+      var parsed = parseOcrText(text);
+      rawText.value = text.trim();
+      suiteInput.value = parsed.suite;
+      companyInput.value = parsed.company;
+      openReview();
+    }).catch(function(err){
+      hideStatus();
+      console.error(err);
+      alert("OCR failed to read this image. Try retaking the photo with better lighting, or enter the details manually.");
+      rawText.value = "";
+      suiteInput.value = "";
+      companyInput.value = "";
+      openReview();
+    });
+  }
+
+  function openReview(){
+    reviewSection.style.display = "block";
+    reviewSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // ---------- OCR text parsing ----------
+
+  function parseOcrText(text){
+    var lines = text.split("\n")
+      .map(function(l){ return l.replace(/[|_~`]/g, "").trim(); })
+      .filter(function(l){ return l.length > 0; });
+
+    var suite = "";
+    var suiteLineIndex = -1;
+
+    var suiteRegex = /\b(suite|ste|rm|room|unit|no\.?)\s*[:#-]?\s*([a-z]?\d{1,5}[a-z]?)\b/i;
+    var bareNumberRegex = /^#?\s*(\d{1,5}[a-z]?)$/i;
+
+    for (var i = 0; i < lines.length; i++){
+      var m = lines[i].match(suiteRegex);
+      if (m){
+        suite = m[2].toUpperCase();
+        suiteLineIndex = i;
+        break;
+      }
+    }
+    if (!suite){
+      for (var j = 0; j < lines.length; j++){
+        var m2 = lines[j].match(bareNumberRegex);
+        if (m2){
+          suite = m2[1].toUpperCase();
+          suiteLineIndex = j;
+          break;
+        }
+      }
+    }
+
+    var candidates = lines.filter(function(l, idx){
+      return idx !== suiteLineIndex && l.length > 1 && !/^[\d\s#:.-]+$/.test(l);
+    });
+    candidates.sort(function(a, b){ return b.length - a.length; });
+    var company = candidates.length ? candidates[0] : "";
+
+    return { suite: suite, company: company };
+  }
+
+  // ---------- save / discard ----------
+
+  retakeBtn.addEventListener("click", function(){
+    cameraInput.value = "";
+    cameraInput.click();
+  });
+
+  discardBtn.addEventListener("click", function(){
+    resetScanArea();
+  });
+
+  function resetScanArea(){
+    reviewSection.style.display = "none";
+    preview.style.display = "none";
+    preview.src = "";
+    suiteInput.value = "";
+    companyInput.value = "";
+    rawText.value = "";
+  }
+
+  saveBtn.addEventListener("click", function(){
+    var building = buildingInput.value.trim();
+    var floor = floorInput.value.trim();
+    var suite = suiteInput.value.trim();
+    var company = companyInput.value.trim();
+
+    if (!building || !floor){
+      alert("Enter the Building address and Floor at the top before saving.");
+      return;
+    }
+    if (!suite && !company){
+      alert("Enter at least a Suite number or a Company name before saving.");
+      return;
+    }
+
+    var rows = getRows();
+    var dupIndex = -1;
+    for (var i = 0; i < rows.length; i++){
+      if (rows[i].building.toLowerCase() === building.toLowerCase() &&
+          rows[i].floor.toLowerCase() === floor.toLowerCase() &&
+          rows[i].suite.toLowerCase() === suite.toLowerCase()){
+        dupIndex = i;
+        break;
+      }
+    }
+
+    if (dupIndex >= 0){
+      var existing = rows[dupIndex];
+      var msg = "This suite is already saved:\n\n" +
+        "Suite " + (existing.suite || "(blank)") + " — " + (existing.company || "(blank)") + "\n\n" +
+        "Overwrite it with:\n" +
+        "Suite " + (suite || "(blank)") + " — " + (company || "(blank)") + " ?";
+      var overwrite = confirm(msg);
+      if (!overwrite) return;
+      rows[dupIndex] = {
+        id: existing.id,
+        building: building,
+        floor: floor,
+        suite: suite,
+        company: company,
+        savedAt: new Date().toISOString()
+      };
+    } else {
+      rows.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        building: building,
+        floor: floor,
+        suite: suite,
+        company: company,
+        savedAt: new Date().toISOString()
+      });
+    }
+
+    saveRows(rows);
+    renderRows();
+    resetScanArea();
+  });
+
+  // ---------- render saved rows ----------
+
+  function renderRows(){
+    var rows = getRows();
+    rowCount.textContent = rows.length;
+
+    if (!rows.length){
+      rowsWrap.innerHTML = '<div class="empty">No rows saved yet. Scan a plaque to get started.</div>';
+      return;
+    }
+
+    var sorted = rows.slice().sort(function(a, b){
+      var ka = (a.building + a.floor + a.suite).toLowerCase();
+      var kb = (b.building + b.floor + b.suite).toLowerCase();
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+
+    var html = '<table><thead><tr>' +
+      '<th>Suite</th><th>Company</th><th>Floor</th><th></th>' +
+      '</tr></thead><tbody>';
+
+    sorted.forEach(function(r){
+      html += '<tr>' +
+        '<td class="suite">' + escapeHtml(r.suite || "—") + '</td>' +
+        '<td class="company">' + escapeHtml(r.company || "—") +
+          '<div class="hint" style="margin-top:2px;">' + escapeHtml(r.building) + '</div></td>' +
+        '<td>' + escapeHtml(r.floor) + '</td>' +
+        '<td class="del"><button class="del-btn" data-id="' + r.id + '" title="Delete row">✕</button></td>' +
+        '</tr>';
+    });
+
+    html += '</tbody></table>';
+    rowsWrap.innerHTML = html;
+
+    var delBtns = rowsWrap.querySelectorAll(".del-btn");
+    delBtns.forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-id");
+        var ok = confirm("Delete this row? This cannot be undone.");
+        if (!ok) return;
+        var rows2 = getRows().filter(function(r){ return r.id !== id; });
+        saveRows(rows2);
+        renderRows();
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ---------- CSV export ----------
+
+  exportBtn.addEventListener("click", function(){
+    var rows = getRows();
+    if (!rows.length){
+      alert("No saved rows to export yet.");
+      return;
+    }
+
+    var header = ["Building", "Floor", "Suite", "Company", "Saved At"];
+    var lines = [header.map(csvEscape).join(",")];
+    rows.forEach(function(r){
+      lines.push([r.building, r.floor, r.suite, r.company, r.savedAt].map(csvEscape).join(","));
+    });
+    var csv = lines.join("\r\n");
+
+    var blob = new Blob([csv], { type: "text/csv" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    var stamp = new Date().toISOString().slice(0, 10);
+    a.download = "building-survey-" + stamp + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  });
+
+  function csvEscape(val){
+    var s = val == null ? "" : String(val);
+    if (/[",\r\n]/.test(s)){
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  // ---------- clear all ----------
+
+  clearBtn.addEventListener("click", function(){
+    var rows = getRows();
+    if (!rows.length){
+      alert("There's nothing saved yet.");
+      return;
+    }
+    var ok = confirm("Delete ALL " + rows.length + " saved rows? Export to CSV first if you need them. This cannot be undone.");
+    if (!ok) return;
+    localStorage.removeItem(ROWS_KEY);
+    renderRows();
+  });
+
+  // ---------- init ----------
+
+  restoreJobFields();
+  renderRows();
+
+})();
+</script>
+
+</body>
+</html>
