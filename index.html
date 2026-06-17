@@ -446,6 +446,7 @@
   }
   .reminder.show{ display:flex; }
   .reminder p{ margin:0; font-size:0.88rem; line-height:1.4; }
+  .reminder p.preview{ font-size:0.78rem; color:#b9b3a6; font-style:italic; }
   .reminder .reminder-actions{ display:flex; gap:8px; }
   .reminder .reminder-actions button{
     flex:1;
@@ -521,6 +522,9 @@
         <li>Run it on a suite plaque, then come back to this page and paste below.</li>
       </ol>
     </details>
+
+    <button class="btn btn-save" id="pasteClipboardBtn">📋 PASTE FROM CLIPBOARD</button>
+    <div class="hint">Reads your clipboard and parses it instantly. iOS may show a one-time permission prompt the first time.</div>
 
     <label for="appleOcrPaste">Paste Apple OCR text</label>
     <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then paste the text your Shortcut copied (long-press → Paste)."></textarea>
@@ -602,6 +606,15 @@
   </div>
 </div>
 
+<div class="reminder" id="clipboardPrompt">
+  <p>Use clipboard text?</p>
+  <p class="preview" id="clipboardPromptPreview"></p>
+  <div class="reminder-actions">
+    <button class="rem-export" id="clipboardYesBtn">Yes</button>
+    <button class="rem-dismiss" id="clipboardNoBtn">No</button>
+  </div>
+</div>
+
 <script>
 (function(){
   "use strict";
@@ -664,6 +677,7 @@
   var nextFloorDownBtn = $("nextFloorDownBtn");
   var appleOcrPaste = $("appleOcrPaste");
   var parsePasteBtn = $("parsePasteBtn");
+  var pasteClipboardBtn = $("pasteClipboardBtn");
   var cameraInput = $("cameraInput");
   var scanBtn = $("scanBtn");
   var manualBtn = $("manualBtn");
@@ -693,6 +707,10 @@
   var exportReminderText = $("exportReminderText");
   var reminderExportBtn = $("reminderExportBtn");
   var reminderDismissBtn = $("reminderDismissBtn");
+  var clipboardPrompt = $("clipboardPrompt");
+  var clipboardPromptPreview = $("clipboardPromptPreview");
+  var clipboardYesBtn = $("clipboardYesBtn");
+  var clipboardNoBtn = $("clipboardNoBtn");
   var qVacant = $("qVacant");
   var qNoName = $("qNoName");
   var qUnreadable = $("qUnreadable");
@@ -701,6 +719,8 @@
   var editingRowId = null;
   var activeArea = Object.keys(BUILDING_AREAS)[0];
   var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text above, or enter manually.";
+  var lastSeenClipboardText = "";
+  var pendingClipboardText = "";
 
   // ---------- storage availability check ----------
   // GitHub Pages serves over https, so localStorage is reliable here.
@@ -1041,6 +1061,79 @@
   appleOcrPaste.addEventListener("paste", function(){
     // Read after a short delay so the pasted text has actually landed in the field.
     setTimeout(function(){ handlePastedText(appleOcrPaste.value); }, 60);
+  });
+
+  // ---------- Apple OCR Clipboard Mode ----------
+
+  function clipboardApiAvailable(){
+    return !!(navigator.clipboard && navigator.clipboard.readText);
+  }
+
+  function hideClipboardPrompt(){
+    clipboardPrompt.classList.remove("show");
+  }
+
+  function showClipboardPrompt(text){
+    if (exportReminder.classList.contains("show")) return; // avoid stacking two toasts
+    pendingClipboardText = text;
+    var preview = text.trim().replace(/\s+/g, " ");
+    if (preview.length > 90) preview = preview.slice(0, 90) + "…";
+    clipboardPromptPreview.textContent = preview;
+    clipboardPrompt.classList.add("show");
+  }
+
+  clipboardYesBtn.addEventListener("click", function(){
+    var text = pendingClipboardText;
+    lastSeenClipboardText = text;
+    hideClipboardPrompt();
+    appleOcrPaste.value = text;
+    handlePastedText(text);
+  });
+
+  clipboardNoBtn.addEventListener("click", function(){
+    lastSeenClipboardText = pendingClipboardText;
+    hideClipboardPrompt();
+  });
+
+  // Explicit button: always a direct user gesture, so this is the reliable path.
+  pasteClipboardBtn.addEventListener("click", function(){
+    if (!clipboardApiAvailable()){
+      alert("Clipboard access isn't available in this browser. Long-press the paste box below and choose Paste instead.");
+      return;
+    }
+    navigator.clipboard.readText().then(function(text){
+      if (!text || !text.trim()){
+        alert("Clipboard is empty or doesn't contain text.");
+        return;
+      }
+      lastSeenClipboardText = text;
+      appleOcrPaste.value = text;
+      handlePastedText(text);
+    }).catch(function(err){
+      console.error(err);
+      alert("Couldn't read the clipboard. iOS may need you to allow access — try again, or long-press the paste box below and choose Paste instead.");
+    });
+  });
+
+  // Best-effort auto-check when the page regains focus. Safari often blocks
+  // clipboard reads that aren't tied to a direct tap, so this silently does
+  // nothing if the browser refuses — the button above always works.
+  function checkClipboardOnFocus(){
+    if (!clipboardApiAvailable()) return;
+    if (reviewSection.style.display === "block") return; // already reviewing an entry
+    navigator.clipboard.readText().then(function(text){
+      if (!text || !text.trim()) return;
+      if (text === lastSeenClipboardText) return;
+      if (text === appleOcrPaste.value) { lastSeenClipboardText = text; return; }
+      showClipboardPrompt(text);
+    }).catch(function(){
+      // No permission / no gesture — ignore quietly.
+    });
+  }
+
+  window.addEventListener("focus", checkClipboardOnFocus);
+  document.addEventListener("visibilitychange", function(){
+    if (document.visibilityState === "visible") checkClipboardOnFocus();
   });
 
   // ---------- Web OCR (optional, lazy-loaded Tesseract.js) ----------
