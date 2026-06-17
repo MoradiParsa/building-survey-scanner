@@ -314,8 +314,9 @@
     margin-bottom:8px;
   }
   .job-row:last-of-type{ margin-bottom:0; }
-  .job-field{ flex:1; min-width:0; }
+  .job-field{ flex:1; min-width:0; position:relative; }
   .job-field label{ margin:0 0 4px; }
+  .job-field label .muted-hint{ font-weight:400; text-transform:none; letter-spacing:0; color:var(--muted); }
   .btn-compact{
     flex:0 0 auto;
     min-height:46px;
@@ -329,71 +330,48 @@
     white-space:nowrap;
     cursor:pointer;
   }
-  .btn-compact.change-building{ border-color:var(--ink); }
   .btn-compact.floor-down{ border-color:var(--safety); color:var(--safety-dark); }
   .btn-compact:active{ background:var(--paper); }
 
-  /* building picker */
-  .picker-tabs{
-    display:flex;
-    gap:6px;
-    overflow-x:auto;
-    padding-bottom:8px;
-    -webkit-overflow-scrolling:touch;
-  }
-  .picker-tabs button{
-    flex:0 0 auto;
-    padding:9px 14px;
-    border-radius:999px;
-    border:2px solid var(--line);
-    background:#fff;
-    font-weight:700;
-    font-size:0.78rem;
-    white-space:nowrap;
-    cursor:pointer;
-    color:var(--ink);
-  }
-  .picker-tabs button.active{
-    background:var(--ink);
-    color:#fff;
-    border-color:var(--ink);
-  }
-
-  .bld-list{
-    max-height:320px;
+  /* instant building search suggestions */
+  .bld-suggestions{
+    display:none;
+    position:absolute;
+    left:0; right:0; top:100%;
+    z-index:20;
+    max-height:280px;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
-    border:1px solid var(--line);
-    border-radius:10px;
-    margin-top:4px;
-    background:#fbfaf7;
+    border:2px solid var(--ink);
+    border-top:none;
+    border-radius:0 0 10px 10px;
+    background:#fff;
+    box-shadow:0 8px 18px rgba(0,0,0,0.18);
   }
-  .bld-item{
+  .bld-suggestions.show{ display:block; }
+  .bld-suggestion{
     display:flex;
     align-items:center;
     gap:8px;
     width:100%;
     text-align:left;
-    padding:12px 12px;
+    padding:11px 12px;
     border:none;
     border-bottom:1px solid var(--line);
     background:none;
-    font-size:0.9rem;
+    font-size:0.88rem;
     color:var(--ink);
     cursor:pointer;
   }
-  .bld-item:last-child{ border-bottom:none; }
-  .bld-item.selected{ background:#fdf1ea; border-left:4px solid var(--safety); }
-  .bld-item .bld-check{ color:var(--go); font-weight:700; flex:0 0 auto; }
-  .bld-item .bld-addr{ flex:1; min-width:0; }
-  .bld-item .bld-note{ display:block; font-size:0.68rem; color:var(--muted); font-style:italic; }
-  .bld-item .bld-area-badge{
-    font-size:0.6rem;
-    background:var(--line);
-    color:var(--ink);
-    padding:2px 7px;
-    border-radius:999px;
-    flex:0 0 auto;
+  .bld-suggestion:last-child{ border-bottom:none; }
+  .bld-suggestion .bld-check{ color:var(--go); font-weight:700; flex:0 0 auto; }
+  .bld-suggestion .bld-name{ flex:1; min-width:0; }
+  .bld-suggestion .bld-note{ display:block; font-size:0.68rem; color:var(--muted); font-style:italic; }
+  .bld-suggestion-more{
+    padding:8px 12px;
+    font-size:0.72rem;
+    color:var(--muted);
+    text-align:center;
   }
 
   #preview{
@@ -556,12 +534,10 @@
 
   <section class="compact">
     <h2>Job Setup</h2>
-    <div class="job-row">
-      <div class="job-field">
-        <label for="building">Building</label>
-        <input type="text" id="building" placeholder="e.g. 400 Main St" autocomplete="off">
-      </div>
-      <button type="button" class="btn-compact change-building" id="changeBuildingBtn">Change<br>Building</button>
+    <div class="job-field">
+      <label for="building">Building <span class="muted-hint">(type a street number or name to search)</span></label>
+      <input type="text" id="building" placeholder="e.g. 5601 or Granite" autocomplete="off">
+      <div class="bld-suggestions" id="bldSuggestions"></div>
     </div>
     <div class="job-row">
       <div class="job-field">
@@ -571,14 +547,6 @@
       <button type="button" class="btn-compact floor-down" id="nextFloorDownBtn">▼ Floor<br>Down</button>
     </div>
     <button class="btn btn-ghost btn-sm" id="markCompleteBtn" style="margin-top:10px;">✔ Mark Building Complete</button>
-  </section>
-
-  <section id="buildingPickerSection" style="display:none;">
-    <h2>Building Picker</h2>
-    <input type="search" id="buildingSearch" placeholder="Search any building address…" autocomplete="off">
-    <div class="picker-tabs" id="pickerTabs"></div>
-    <div class="bld-list" id="bldList"></div>
-    <div class="hint">Tap an area to browse, or type above to search every area at once. Tapping a building sets it and closes this picker.</div>
   </section>
 
   <section id="entrySection">
@@ -693,49 +661,147 @@
 (function(){
   "use strict";
 
-  // ---------- fixed building list (no API/backend — just static data) ----------
+  // ---------- master building list (shared with the Map / Route Planner page) ----------
+  // One flat list now, instead of Market/Submarket tabs. Seeded once with the
+  // previous fixed address list so existing data isn't lost; after that,
+  // buildings are added only via Import on the Map / Route Planner page.
 
-  var BUILDING_AREAS = {
-    "Irving": [
-      "5205 N O'Connor Blvd", "909 Hidden Ridge Dr", "4050 Regent Blvd", "4000 Regent Blvd",
-      "3950 Regent Blvd", "5601 Executive Dr", "8505 Freeport Pkwy", "3001 Hackberry Rd",
-      "370 Las Colinas Blvd", "909 Lake Carolyn Pkwy", "6535 State Highway 161", "6021 Connection Dr",
-      "4851 Regent Blvd", "2201 W Royal Ln", "300 E John Carpenter Fwy", "125 E John Carpenter Fwy",
-      "225 E John Carpenter Fwy", "220 Las Colinas Blvd E", "8900 Freeport Pkwy", "6565 N MacArthur Blvd",
-      "7000 State Highway 161", "7100 State Highway 161", "122 W John Carpenter Fwy", "500 E John Carpenter Fwy",
-      "4609 Regent Blvd", "6011 Connection Dr", "1255 Corporate Dr", "250 E John Carpenter Fwy",
-      "1212 Corporate Dr", "2101 W John Carpenter Fwy", "1321 Greenway Dr", "1901 Gateway Dr",
-      "5201 N O'Connor Blvd", "290 E John Carpenter Fwy", "1525 W Walnut Hill Ln", "8700 Freeport Pkwy",
-      "625 E Royal Ln", "8615 Freeport Pkwy", "6555 State Highway 161", "6460 Las Colinas Blvd"
-    ],
-    "Las Colinas": [
-      "401 Las Colinas Blvd"
-    ],
-    "Coppell": [
-      "2999 Olympus Blvd", "3100 Olympus Blvd", "3200 Olympus Blvd", "9111 Cypress Waters Blvd",
-      "8951 Cypress Waters Blvd", "8840 Cypress Waters Blvd", "1322 Crestside Dr", "750 Canyon Dr"
-    ],
-    "Dallas": [
-      "1505-1507 Lyndon B Johnson Fwy", "11701 Luna Rd", "1800 Valley View Ln", "13737 Noel Rd",
-      "13601 Preston Rd", "17950 Preston Rd", "4849 Alpha Rd"
-    ],
-    "Addison": [
-      "15301 Spectrum Dr"
-    ],
-    "Plano": [
-      "5400 Legacy Dr (Part of a 3 Property Sale)",
-      "5360 Legacy Dr (Part of a 3 Property Sale)",
-      "5905 Legacy Dr (Part of a 7 Property Sale)",
-      "2400 Dallas Pkwy",
-      "7700 Windrose Ave (Part of a 7 Property Sale)",
-      "3905 N Dallas Pkwy",
-      "5217 Tennyson Pkwy",
-      "5068 W Plano Pkwy"
-    ]
-  };
+  var SEED_BUILDINGS = [
+    {id:"seed1",address:"5205 N O'Connor Blvd, Irving, TX",displayName:"5205 N O'Connor Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed2",address:"909 Hidden Ridge Dr, Irving, TX",displayName:"909 Hidden Ridge Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed3",address:"4050 Regent Blvd, Irving, TX",displayName:"4050 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed4",address:"4000 Regent Blvd, Irving, TX",displayName:"4000 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed5",address:"3950 Regent Blvd, Irving, TX",displayName:"3950 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed6",address:"5601 Executive Dr, Irving, TX",displayName:"5601 Executive Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed7",address:"8505 Freeport Pkwy, Irving, TX",displayName:"8505 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed8",address:"3001 Hackberry Rd, Irving, TX",displayName:"3001 Hackberry Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed9",address:"370 Las Colinas Blvd, Irving, TX",displayName:"370 Las Colinas Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed10",address:"909 Lake Carolyn Pkwy, Irving, TX",displayName:"909 Lake Carolyn Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed11",address:"6535 State Highway 161, Irving, TX",displayName:"6535 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed12",address:"6021 Connection Dr, Irving, TX",displayName:"6021 Connection Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed13",address:"4851 Regent Blvd, Irving, TX",displayName:"4851 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed14",address:"2201 W Royal Ln, Irving, TX",displayName:"2201 W Royal Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed15",address:"300 E John Carpenter Fwy, Irving, TX",displayName:"300 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed16",address:"125 E John Carpenter Fwy, Irving, TX",displayName:"125 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed17",address:"225 E John Carpenter Fwy, Irving, TX",displayName:"225 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed18",address:"220 Las Colinas Blvd E, Irving, TX",displayName:"220 Las Colinas Blvd E",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed19",address:"8900 Freeport Pkwy, Irving, TX",displayName:"8900 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed20",address:"6565 N MacArthur Blvd, Irving, TX",displayName:"6565 N MacArthur Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed21",address:"7000 State Highway 161, Irving, TX",displayName:"7000 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed22",address:"7100 State Highway 161, Irving, TX",displayName:"7100 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed23",address:"122 W John Carpenter Fwy, Irving, TX",displayName:"122 W John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed24",address:"500 E John Carpenter Fwy, Irving, TX",displayName:"500 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed25",address:"4609 Regent Blvd, Irving, TX",displayName:"4609 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed26",address:"6011 Connection Dr, Irving, TX",displayName:"6011 Connection Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed27",address:"1255 Corporate Dr, Irving, TX",displayName:"1255 Corporate Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed28",address:"250 E John Carpenter Fwy, Irving, TX",displayName:"250 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed29",address:"1212 Corporate Dr, Irving, TX",displayName:"1212 Corporate Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed30",address:"2101 W John Carpenter Fwy, Irving, TX",displayName:"2101 W John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed31",address:"1321 Greenway Dr, Irving, TX",displayName:"1321 Greenway Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed32",address:"1901 Gateway Dr, Irving, TX",displayName:"1901 Gateway Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed33",address:"5201 N O'Connor Blvd, Irving, TX",displayName:"5201 N O'Connor Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed34",address:"290 E John Carpenter Fwy, Irving, TX",displayName:"290 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed35",address:"1525 W Walnut Hill Ln, Irving, TX",displayName:"1525 W Walnut Hill Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed36",address:"8700 Freeport Pkwy, Irving, TX",displayName:"8700 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed37",address:"625 E Royal Ln, Irving, TX",displayName:"625 E Royal Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed38",address:"8615 Freeport Pkwy, Irving, TX",displayName:"8615 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed39",address:"6555 State Highway 161, Irving, TX",displayName:"6555 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed40",address:"6460 Las Colinas Blvd, Irving, TX",displayName:"6460 Las Colinas Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed41",address:"401 Las Colinas Blvd, Irving, TX",displayName:"401 Las Colinas Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed42",address:"2999 Olympus Blvd, Coppell, TX",displayName:"2999 Olympus Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed43",address:"3100 Olympus Blvd, Coppell, TX",displayName:"3100 Olympus Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed44",address:"3200 Olympus Blvd, Coppell, TX",displayName:"3200 Olympus Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed45",address:"9111 Cypress Waters Blvd, Coppell, TX",displayName:"9111 Cypress Waters Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed46",address:"8951 Cypress Waters Blvd, Coppell, TX",displayName:"8951 Cypress Waters Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed47",address:"8840 Cypress Waters Blvd, Coppell, TX",displayName:"8840 Cypress Waters Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed48",address:"1322 Crestside Dr, Coppell, TX",displayName:"1322 Crestside Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed49",address:"750 Canyon Dr, Coppell, TX",displayName:"750 Canyon Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed50",address:"1505-1507 Lyndon B Johnson Fwy, Dallas, TX",displayName:"1505-1507 Lyndon B Johnson Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed51",address:"11701 Luna Rd, Dallas, TX",displayName:"11701 Luna Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed52",address:"1800 Valley View Ln, Dallas, TX",displayName:"1800 Valley View Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed53",address:"13737 Noel Rd, Dallas, TX",displayName:"13737 Noel Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed54",address:"13601 Preston Rd, Dallas, TX",displayName:"13601 Preston Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed55",address:"17950 Preston Rd, Dallas, TX",displayName:"17950 Preston Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed56",address:"4849 Alpha Rd, Dallas, TX",displayName:"4849 Alpha Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed57",address:"15301 Spectrum Dr, Addison, TX",displayName:"15301 Spectrum Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed58",address:"5400 Legacy Dr, Plano, TX",displayName:"5400 Legacy Dr",notes:"Part of a 3 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed59",address:"5360 Legacy Dr, Plano, TX",displayName:"5360 Legacy Dr",notes:"Part of a 3 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed60",address:"5905 Legacy Dr, Plano, TX",displayName:"5905 Legacy Dr",notes:"Part of a 7 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed61",address:"2400 Dallas Pkwy, Plano, TX",displayName:"2400 Dallas Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed62",address:"7700 Windrose Ave, Plano, TX",displayName:"7700 Windrose Ave",notes:"Part of a 7 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed63",address:"3905 N Dallas Pkwy, Plano, TX",displayName:"3905 N Dallas Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed64",address:"5217 Tennyson Pkwy, Plano, TX",displayName:"5217 Tennyson Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed65",address:"5068 W Plano Pkwy, Plano, TX",displayName:"5068 W Plano Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false}
+  ];
+
+  var BUILDINGS_KEY = "bss_buildings_v1";
+
+  function loadBuildings(){
+    try {
+      var raw = localStorage.getItem(BUILDINGS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e){
+      return [];
+    }
+  }
+
+  function extractDisplayName(address){
+    var addr = (address || "").trim();
+    var idx = addr.indexOf(",");
+    if (idx === -1) return addr;
+    return addr.substring(0, idx).trim();
+  }
+
+  function migrateOldMapBuildings(){
+    var raw;
+    try { raw = localStorage.getItem("bss_map_buildings_v1"); } catch (e){ return null; }
+    if (!raw) return null;
+    var old;
+    try { old = JSON.parse(raw); } catch (e){ return null; }
+    if (!Array.isArray(old) || !old.length) return null;
+    return old.map(function(b, i){
+      var addr = [b.address, b.city, (b.state + " " + (b.zip || "")).trim()].filter(Boolean).join(", ");
+      return {
+        id: "m" + i,
+        address: addr,
+        displayName: extractDisplayName(addr),
+        notes: b.notes || "",
+        status: b.status || "",
+        lat: (b.lat != null ? b.lat : null),
+        lng: (b.lng != null ? b.lng : null),
+        geocodeFailed: !!b.geocodeFailed
+      };
+    });
+  }
+
+  function seedBuildingsIfEmpty(){
+    var existing;
+    try { existing = localStorage.getItem(BUILDINGS_KEY); } catch (e){ return; }
+    if (existing) return; // already seeded (here or on the Map page) — never overwrite
+    var migrated = migrateOldMapBuildings();
+    try { localStorage.setItem(BUILDINGS_KEY, JSON.stringify(migrated && migrated.length ? migrated : SEED_BUILDINGS)); } catch (e){ /* ignore */ }
+  }
+
+  function normalizeSearch(s){
+    return (s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function searchBuildings(query){
+    var list = loadBuildings();
+    var nq = normalizeSearch(query);
+    var matches = !nq ? list.slice() : list.filter(function(b){
+      return normalizeSearch(b.address).indexOf(nq) !== -1;
+    });
+    return { matches: matches.slice(0, 8), total: matches.length };
+  }
 
   var ROWS_KEY = "bss_rows_v1";
   var BUILDING_KEY = "bss_building_v1";
+  var BUILDING_ADDRESS_KEY = "bss_building_address_v1";
   var FLOOR_KEY = "bss_floor_v1";
   var UNDO_KEY = "bss_undo_v1";
   var COMPLETED_KEY = "bss_completed_v1";
@@ -744,11 +810,7 @@
   var $ = function(id){ return document.getElementById(id); };
 
   var buildingInput = $("building");
-  var buildingSearch = $("buildingSearch");
-  var pickerTabs = $("pickerTabs");
-  var bldList = $("bldList");
-  var buildingPickerSection = $("buildingPickerSection");
-  var changeBuildingBtn = $("changeBuildingBtn");
+  var bldSuggestions = $("bldSuggestions");
   var markCompleteBtn = $("markCompleteBtn");
   var floorInput = $("floor");
   var nextFloorDownBtn = $("nextFloorDownBtn");
@@ -789,7 +851,7 @@
   var qVacant = $("qVacant");
 
   var editingRowId = null;
-  var activeArea = Object.keys(BUILDING_AREAS)[0];
+  var currentBuildingAddress = ""; // full address, kept in sync with the Building field, used for status-sync matching
   var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text, or enter manually.";
   var lastSeenClipboardText = "";
   var clipboardStatusTimer = null;
@@ -836,8 +898,10 @@
   function restoreJobFields(){
     var b = localStorage.getItem(BUILDING_KEY);
     var f = localStorage.getItem(FLOOR_KEY);
+    var addr = localStorage.getItem(BUILDING_ADDRESS_KEY);
     if (b) buildingInput.value = b;
     if (f) floorInput.value = f;
+    currentBuildingAddress = addr || b || "";
   }
 
   // ---------- in-progress entry draft ----------
@@ -885,12 +949,76 @@
     field.addEventListener("input", saveDraft);
   });
 
-  buildingInput.addEventListener("input", function(){
-    localStorage.setItem(BUILDING_KEY, buildingInput.value);
+  var suggestionHideTimer = null;
+
+  function renderBuildingSuggestions(){
+    var result = searchBuildings(buildingInput.value);
+    if (!result.matches.length){
+      bldSuggestions.innerHTML = '<div class="bld-suggestion-more">' +
+        (loadBuildings().length ? "No matching buildings." : "No buildings yet — import a list on the Map / Route Planner page.") +
+        "</div>";
+      return;
+    }
+    var html = "";
+    result.matches.forEach(function(b){
+      var done = isCompleted(b.address);
+      var name = b.displayName || (b.address || "").split(",")[0].trim();
+      html += '<button type="button" class="bld-suggestion" data-id="' + escapeHtml(b.id) + '">' +
+        (done ? '<span class="bld-check">✓</span>' : "") +
+        '<span class="bld-name">' + escapeHtml(name) +
+          (b.notes ? '<span class="bld-note">' + escapeHtml(b.notes) + "</span>" : "") +
+        "</span>" +
+      "</button>";
+    });
+    if (result.total > result.matches.length){
+      html += '<div class="bld-suggestion-more">+' + (result.total - result.matches.length) + " more — keep typing to narrow it down</div>";
+    }
+    bldSuggestions.innerHTML = html;
+    bldSuggestions.querySelectorAll(".bld-suggestion").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-id");
+        var b = loadBuildings().filter(function(x){ return x.id === id; })[0];
+        if (!b) return;
+        selectBuilding(b);
+      });
+    });
+  }
+
+  function showBuildingSuggestions(){
+    if (suggestionHideTimer){ clearTimeout(suggestionHideTimer); suggestionHideTimer = null; }
+    renderBuildingSuggestions();
+    bldSuggestions.classList.add("show");
+  }
+
+  function hideBuildingSuggestions(){
+    bldSuggestions.classList.remove("show");
+  }
+
+  function selectBuilding(b){
+    var name = b.displayName || (b.address || "").split(",")[0].trim();
+    buildingInput.value = name;
+    currentBuildingAddress = b.address;
+    localStorage.setItem(BUILDING_KEY, name);
+    localStorage.setItem(BUILDING_ADDRESS_KEY, currentBuildingAddress);
     updateStatusBar();
     updateMarkCompleteButton();
-    renderBuildingPicker();
+    hideBuildingSuggestions();
+    buildingInput.blur();
+  }
+
+  buildingInput.addEventListener("input", function(){
+    currentBuildingAddress = buildingInput.value; // manual typing: text itself is the matching address
+    localStorage.setItem(BUILDING_KEY, buildingInput.value);
+    localStorage.setItem(BUILDING_ADDRESS_KEY, currentBuildingAddress);
+    updateStatusBar();
+    updateMarkCompleteButton();
+    showBuildingSuggestions();
   });
+  buildingInput.addEventListener("focus", showBuildingSuggestions);
+  buildingInput.addEventListener("blur", function(){
+    suggestionHideTimer = setTimeout(hideBuildingSuggestions, 150);
+  });
+
   floorInput.addEventListener("input", function(){
     localStorage.setItem(FLOOR_KEY, floorInput.value);
     updateStatusBar();
@@ -932,7 +1060,7 @@
   }
 
   function updateMarkCompleteButton(){
-    var b = buildingInput.value.trim();
+    var b = currentBuildingAddress.trim();
     if (b && isCompleted(b)){
       markCompleteBtn.textContent = "✔ COMPLETED — TAP TO UNMARK";
       markCompleteBtn.classList.add("completed-active");
@@ -943,118 +1071,14 @@
   }
 
   markCompleteBtn.addEventListener("click", function(){
-    var b = buildingInput.value.trim();
+    var b = currentBuildingAddress.trim();
     if (!b){
       alert("Enter or pick a building first.");
       return;
     }
     toggleCompleted(b);
     updateMarkCompleteButton();
-    renderBuildingPicker();
   });
-
-  // ---------- building picker (collapsed by default) ----------
-
-  function openBuildingPicker(){
-    buildingPickerSection.style.display = "block";
-    buildingPickerSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function closeBuildingPicker(){
-    buildingPickerSection.style.display = "none";
-  }
-
-  function isBuildingPickerOpen(){
-    return buildingPickerSection.style.display !== "none";
-  }
-
-  changeBuildingBtn.addEventListener("click", function(){
-    if (isBuildingPickerOpen()){
-      closeBuildingPicker();
-    } else {
-      openBuildingPicker();
-    }
-  });
-
-  function parseBuildingEntry(raw){
-    var m = raw.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
-    if (m){
-      return { address: m[1].trim(), note: m[2].trim() };
-    }
-    return { address: raw.trim(), note: null };
-  }
-
-  function renderAreaTabs(){
-    var html = "";
-    Object.keys(BUILDING_AREAS).forEach(function(area){
-      html += '<button type="button" data-area="' + escapeHtml(area) + '" class="' +
-        (area === activeArea ? "active" : "") + '">' + escapeHtml(area) + "</button>";
-    });
-    pickerTabs.innerHTML = html;
-    pickerTabs.querySelectorAll("button").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        activeArea = btn.getAttribute("data-area");
-        buildingSearch.value = "";
-        pickerTabs.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
-        btn.classList.add("active");
-        renderBuildingPicker();
-      });
-    });
-  }
-
-  function bldItemHtml(parsed, area, showAreaBadge){
-    var isSelected = normalizeBuilding(buildingInput.value) === normalizeBuilding(parsed.address);
-    var done = isCompleted(parsed.address);
-    return '<button type="button" class="bld-item' + (isSelected ? " selected" : "") + '" data-address="' +
-      escapeHtml(parsed.address) + '">' +
-      (done ? '<span class="bld-check">✓</span>' : "") +
-      '<span class="bld-addr">' + escapeHtml(parsed.address) +
-        (parsed.note ? '<span class="bld-note">' + escapeHtml(parsed.note) + "</span>" : "") +
-      "</span>" +
-      (showAreaBadge ? '<span class="bld-area-badge">' + escapeHtml(area) + "</span>" : "") +
-      "</button>";
-  }
-
-  function renderBuildingPicker(){
-    var query = buildingSearch.value.trim().toLowerCase();
-    var html = "";
-
-    if (query){
-      Object.keys(BUILDING_AREAS).forEach(function(area){
-        BUILDING_AREAS[area].forEach(function(raw){
-          var parsed = parseBuildingEntry(raw);
-          var hay = (parsed.address + " " + (parsed.note || "") + " " + area).toLowerCase();
-          if (hay.indexOf(query) !== -1){
-            html += bldItemHtml(parsed, area, true);
-          }
-        });
-      });
-      if (!html){
-        html = '<div class="empty">No matching buildings.</div>';
-      }
-    } else {
-      BUILDING_AREAS[activeArea].forEach(function(raw){
-        var parsed = parseBuildingEntry(raw);
-        html += bldItemHtml(parsed, activeArea, false);
-      });
-    }
-
-    bldList.innerHTML = html;
-    bldList.querySelectorAll(".bld-item").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var addr = btn.getAttribute("data-address");
-        buildingInput.value = addr;
-        localStorage.setItem(BUILDING_KEY, addr);
-        updateStatusBar();
-        updateMarkCompleteButton();
-        buildingSearch.value = "";
-        renderBuildingPicker();
-        closeBuildingPicker(); // auto-collapse right after a selection
-      });
-    });
-  }
-
-  buildingSearch.addEventListener("input", renderBuildingPicker);
 
   // ---------- floor down ----------
 
@@ -1734,10 +1758,9 @@
 
   // ---------- init ----------
 
+  seedBuildingsIfEmpty();
   restoreJobFields();
   restoreDraft();
-  renderAreaTabs();
-  renderBuildingPicker();
   updateMarkCompleteButton();
   renderRows();
   updateStatusBar();

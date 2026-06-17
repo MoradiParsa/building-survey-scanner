@@ -84,7 +84,7 @@
   }
   label:first-of-type{ margin-top:0; }
 
-  select, input[type="text"]{
+  select, input[type="text"], textarea{
     width:100%;
     font-size:1rem;
     padding:11px 10px;
@@ -95,6 +95,15 @@
     font-family:var(--sans);
     -webkit-appearance:none;
   }
+  textarea{ min-height:90px; resize:vertical; }
+  input[type="text"]:focus, textarea:focus{ outline:none; border-color:var(--ink); }
+
+  #searchInput{
+    font-size:1.08rem;
+    border-width:3px;
+    border-color:var(--go);
+  }
+  #searchInput:focus{ border-color:var(--go-dark); }
 
   .btn{
     display:flex;
@@ -148,17 +157,7 @@
   }
   .leaflet-popup-content{ font-family:var(--sans); font-size:0.85rem; min-width:180px; }
   .popup-card strong{ font-size:0.92rem; }
-  .popup-status{
-    display:inline-block;
-    font-size:0.68rem;
-    font-weight:700;
-    background:var(--line);
-    color:var(--ink);
-    border-radius:999px;
-    padding:1px 8px;
-    margin-top:4px;
-  }
-  .popup-notes{ font-size:0.78rem; color:var(--muted); margin-top:4px; }
+  .popup-sub{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
   .popup-actions{ display:flex; gap:8px; margin-top:8px; }
   .popup-actions a{
     flex:1;
@@ -196,17 +195,6 @@
   .map-row-name{ font-weight:700; font-size:0.94rem; }
   .map-row-check{ color:var(--go); font-weight:700; font-size:0.8rem; flex:0 0 auto; }
   .map-row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
-  .map-row-status{
-    display:inline-block;
-    font-size:0.66rem;
-    font-weight:700;
-    background:var(--line);
-    color:var(--ink);
-    border-radius:999px;
-    padding:1px 8px;
-    margin-top:5px;
-  }
-  .map-row-notes{ font-size:0.78rem; color:var(--muted); margin-top:4px; font-style:italic; }
   .map-row-warn{ font-size:0.74rem; color:var(--safety-dark); margin-top:4px; }
   .map-row-actions{ display:flex; gap:6px; margin-top:8px; }
   .map-row-actions a, .map-row-actions button{
@@ -262,38 +250,35 @@
   <a class="btn btn-ghost" id="backToScannerBtn" href="index.html">← Back to Scanner</a>
 
   <section>
-    <h2>Import Buildings</h2>
-    <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none;">
-    <button class="btn btn-primary" id="importBtn">📂 IMPORT CSV</button>
-    <div class="hint">
-      Columns recognized (any order, header names matched loosely): <strong>Building Name, Address, City, State, Zip, Notes, Status</strong>.
-      Importing replaces the current list — your geocoded locations are cached, so re-importing the same addresses won't re-locate them.
-    </div>
-    <div class="hint">⚠ For "Visited" syncing with the Scanner page to work, each CSV <strong>Address</strong> needs to match the Building address you use on the Scanner page (matching ignores case and extra spaces).</div>
-    <button class="btn btn-ghost" id="geocodeBtn">📍 LOCATE IMPORTED BUILDINGS</button>
-    <div id="geocodeStatus"></div>
-    <button class="btn btn-stop" id="clearImportBtn">🗑 CLEAR IMPORTED LIST</button>
+    <h2>Search</h2>
+    <input type="text" id="searchInput" placeholder="e.g. 5601 or Granite" autocomplete="off">
+    <div class="hint">Same building list as the Scanner page. Searches by street number or any part of the street name — capitalization and punctuation don't matter.</div>
   </section>
 
   <section>
-    <h2>Filters</h2>
-    <div class="filter-row">
-      <div class="filter-field">
-        <label for="statusFilter">Status</label>
-        <select id="statusFilter">
-          <option value="">All statuses</option>
-        </select>
-      </div>
-      <div class="filter-field">
-        <label for="visitedFilter">Visited</label>
-        <select id="visitedFilter">
-          <option value="">All</option>
-          <option value="visited">Visited only</option>
-          <option value="not">Not visited</option>
-        </select>
-      </div>
+    <h2>Import Address List</h2>
+    <textarea id="pasteInput" placeholder="Paste addresses here, one per line, e.g.&#10;5601 Granite Pkwy, Plano, TX&#10;5001 Spring Valley Rd, Dallas, TX"></textarea>
+    <button class="btn btn-primary" id="importPasteBtn">⬇ IMPORT PASTED ADDRESSES</button>
+    <input type="file" id="csvInput" accept=".csv,text/csv,text/plain" style="display:none;">
+    <button class="btn btn-ghost" id="importFileBtn">📂 IMPORT CSV / TEXT FILE</button>
+    <div class="hint">
+      One address per line (a simple CSV with one address per row works too). Display names are generated automatically from each address — just the street number and street name. New addresses are added to the shared list; addresses already in it are skipped.
     </div>
-    <div class="hint">"Visited" is shared with the main scanner's "Mark Building Complete" — matched by the Address column, so marking a building complete on either page updates the other.</div>
+    <div class="hint">⚠ For "Visited" syncing with the Scanner page to work, each imported address needs to match the Building address used there (matching ignores case and punctuation).</div>
+    <button class="btn btn-ghost" id="geocodeBtn">📍 LOCATE BUILDINGS</button>
+    <div id="geocodeStatus"></div>
+    <button class="btn btn-stop" id="clearImportBtn">🗑 CLEAR ALL BUILDINGS</button>
+  </section>
+
+  <section>
+    <h2>Filter</h2>
+    <label for="visitedFilter">Visited</label>
+    <select id="visitedFilter">
+      <option value="">All</option>
+      <option value="visited">Visited only</option>
+      <option value="not">Not visited</option>
+    </select>
+    <div class="hint">"Visited" is shared with the Scanner's "Mark Building Complete" — matched by address, so marking a building on either page updates the other.</div>
   </section>
 
   <section id="mapSection">
@@ -303,7 +288,7 @@
   <section>
     <h2>Buildings <span class="count-pill" id="bldCount">0</span></h2>
     <div id="bldListWrap">
-      <div class="empty">No buildings imported yet. Import a CSV above to get started.</div>
+      <div class="empty">No buildings yet. Import a list above to get started.</div>
     </div>
   </section>
 
@@ -319,18 +304,138 @@
 (function(){
   "use strict";
 
-  var BUILDINGS_KEY = "bss_map_buildings_v1";
+  // ---------- master building list (shared with the Scanner page) ----------
+  // Identical seed/migration/search logic to index.html so either page can
+  // be opened first and still end up with the same shared list.
+
+  var SEED_BUILDINGS = [
+    {id:"seed1",address:"5205 N O'Connor Blvd, Irving, TX",displayName:"5205 N O'Connor Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed2",address:"909 Hidden Ridge Dr, Irving, TX",displayName:"909 Hidden Ridge Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed3",address:"4050 Regent Blvd, Irving, TX",displayName:"4050 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed4",address:"4000 Regent Blvd, Irving, TX",displayName:"4000 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed5",address:"3950 Regent Blvd, Irving, TX",displayName:"3950 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed6",address:"5601 Executive Dr, Irving, TX",displayName:"5601 Executive Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed7",address:"8505 Freeport Pkwy, Irving, TX",displayName:"8505 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed8",address:"3001 Hackberry Rd, Irving, TX",displayName:"3001 Hackberry Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed9",address:"370 Las Colinas Blvd, Irving, TX",displayName:"370 Las Colinas Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed10",address:"909 Lake Carolyn Pkwy, Irving, TX",displayName:"909 Lake Carolyn Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed11",address:"6535 State Highway 161, Irving, TX",displayName:"6535 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed12",address:"6021 Connection Dr, Irving, TX",displayName:"6021 Connection Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed13",address:"4851 Regent Blvd, Irving, TX",displayName:"4851 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed14",address:"2201 W Royal Ln, Irving, TX",displayName:"2201 W Royal Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed15",address:"300 E John Carpenter Fwy, Irving, TX",displayName:"300 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed16",address:"125 E John Carpenter Fwy, Irving, TX",displayName:"125 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed17",address:"225 E John Carpenter Fwy, Irving, TX",displayName:"225 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed18",address:"220 Las Colinas Blvd E, Irving, TX",displayName:"220 Las Colinas Blvd E",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed19",address:"8900 Freeport Pkwy, Irving, TX",displayName:"8900 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed20",address:"6565 N MacArthur Blvd, Irving, TX",displayName:"6565 N MacArthur Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed21",address:"7000 State Highway 161, Irving, TX",displayName:"7000 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed22",address:"7100 State Highway 161, Irving, TX",displayName:"7100 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed23",address:"122 W John Carpenter Fwy, Irving, TX",displayName:"122 W John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed24",address:"500 E John Carpenter Fwy, Irving, TX",displayName:"500 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed25",address:"4609 Regent Blvd, Irving, TX",displayName:"4609 Regent Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed26",address:"6011 Connection Dr, Irving, TX",displayName:"6011 Connection Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed27",address:"1255 Corporate Dr, Irving, TX",displayName:"1255 Corporate Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed28",address:"250 E John Carpenter Fwy, Irving, TX",displayName:"250 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed29",address:"1212 Corporate Dr, Irving, TX",displayName:"1212 Corporate Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed30",address:"2101 W John Carpenter Fwy, Irving, TX",displayName:"2101 W John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed31",address:"1321 Greenway Dr, Irving, TX",displayName:"1321 Greenway Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed32",address:"1901 Gateway Dr, Irving, TX",displayName:"1901 Gateway Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed33",address:"5201 N O'Connor Blvd, Irving, TX",displayName:"5201 N O'Connor Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed34",address:"290 E John Carpenter Fwy, Irving, TX",displayName:"290 E John Carpenter Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed35",address:"1525 W Walnut Hill Ln, Irving, TX",displayName:"1525 W Walnut Hill Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed36",address:"8700 Freeport Pkwy, Irving, TX",displayName:"8700 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed37",address:"625 E Royal Ln, Irving, TX",displayName:"625 E Royal Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed38",address:"8615 Freeport Pkwy, Irving, TX",displayName:"8615 Freeport Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed39",address:"6555 State Highway 161, Irving, TX",displayName:"6555 State Highway 161",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed40",address:"6460 Las Colinas Blvd, Irving, TX",displayName:"6460 Las Colinas Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed41",address:"401 Las Colinas Blvd, Irving, TX",displayName:"401 Las Colinas Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed42",address:"2999 Olympus Blvd, Coppell, TX",displayName:"2999 Olympus Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed43",address:"3100 Olympus Blvd, Coppell, TX",displayName:"3100 Olympus Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed44",address:"3200 Olympus Blvd, Coppell, TX",displayName:"3200 Olympus Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed45",address:"9111 Cypress Waters Blvd, Coppell, TX",displayName:"9111 Cypress Waters Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed46",address:"8951 Cypress Waters Blvd, Coppell, TX",displayName:"8951 Cypress Waters Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed47",address:"8840 Cypress Waters Blvd, Coppell, TX",displayName:"8840 Cypress Waters Blvd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed48",address:"1322 Crestside Dr, Coppell, TX",displayName:"1322 Crestside Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed49",address:"750 Canyon Dr, Coppell, TX",displayName:"750 Canyon Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed50",address:"1505-1507 Lyndon B Johnson Fwy, Dallas, TX",displayName:"1505-1507 Lyndon B Johnson Fwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed51",address:"11701 Luna Rd, Dallas, TX",displayName:"11701 Luna Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed52",address:"1800 Valley View Ln, Dallas, TX",displayName:"1800 Valley View Ln",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed53",address:"13737 Noel Rd, Dallas, TX",displayName:"13737 Noel Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed54",address:"13601 Preston Rd, Dallas, TX",displayName:"13601 Preston Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed55",address:"17950 Preston Rd, Dallas, TX",displayName:"17950 Preston Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed56",address:"4849 Alpha Rd, Dallas, TX",displayName:"4849 Alpha Rd",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed57",address:"15301 Spectrum Dr, Addison, TX",displayName:"15301 Spectrum Dr",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed58",address:"5400 Legacy Dr, Plano, TX",displayName:"5400 Legacy Dr",notes:"Part of a 3 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed59",address:"5360 Legacy Dr, Plano, TX",displayName:"5360 Legacy Dr",notes:"Part of a 3 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed60",address:"5905 Legacy Dr, Plano, TX",displayName:"5905 Legacy Dr",notes:"Part of a 7 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed61",address:"2400 Dallas Pkwy, Plano, TX",displayName:"2400 Dallas Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed62",address:"7700 Windrose Ave, Plano, TX",displayName:"7700 Windrose Ave",notes:"Part of a 7 Property Sale",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed63",address:"3905 N Dallas Pkwy, Plano, TX",displayName:"3905 N Dallas Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed64",address:"5217 Tennyson Pkwy, Plano, TX",displayName:"5217 Tennyson Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false},
+    {id:"seed65",address:"5068 W Plano Pkwy, Plano, TX",displayName:"5068 W Plano Pkwy",notes:"",status:"",lat:null,lng:null,geocodeFailed:false}
+  ];
+
+  var BUILDINGS_KEY = "bss_buildings_v1";
   var GEOCODE_CACHE_KEY = "bss_geocode_cache_v1";
-  var COMPLETED_KEY = "bss_completed_v1"; // shared with the main scanner page
+  var COMPLETED_KEY = "bss_completed_v1"; // shared with the Scanner page
+
+  function extractDisplayName(address){
+    var addr = (address || "").trim();
+    var idx = addr.indexOf(",");
+    if (idx === -1) return addr;
+    return addr.substring(0, idx).trim();
+  }
+
+  function migrateOldMapBuildings(){
+    var raw;
+    try { raw = localStorage.getItem("bss_map_buildings_v1"); } catch (e){ return null; }
+    if (!raw) return null;
+    var old;
+    try { old = JSON.parse(raw); } catch (e){ return null; }
+    if (!Array.isArray(old) || !old.length) return null;
+    return old.map(function(b, i){
+      var addr = [b.address, b.city, (b.state + " " + (b.zip || "")).trim()].filter(Boolean).join(", ");
+      return {
+        id: "m" + i,
+        address: addr,
+        displayName: extractDisplayName(addr),
+        notes: b.notes || "",
+        status: b.status || "",
+        lat: (b.lat != null ? b.lat : null),
+        lng: (b.lng != null ? b.lng : null),
+        geocodeFailed: !!b.geocodeFailed
+      };
+    });
+  }
+
+  function seedBuildingsIfEmpty(){
+    var existing;
+    try { existing = localStorage.getItem(BUILDINGS_KEY); } catch (e){ return; }
+    if (existing) return; // already seeded (here or on the Scanner page) — never overwrite
+    var migrated = migrateOldMapBuildings();
+    try { localStorage.setItem(BUILDINGS_KEY, JSON.stringify(migrated && migrated.length ? migrated : SEED_BUILDINGS)); } catch (e){ /* ignore */ }
+  }
+
+  function normalizeSearch(s){
+    return (s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
 
   var $ = function(id){ return document.getElementById(id); };
 
+  var backToScannerBtn = $("backToScannerBtn");
+  var searchInput = $("searchInput");
+  var pasteInput = $("pasteInput");
+  var importPasteBtn = $("importPasteBtn");
   var csvInput = $("csvInput");
-  var importBtn = $("importBtn");
+  var importFileBtn = $("importFileBtn");
   var geocodeBtn = $("geocodeBtn");
   var geocodeStatus = $("geocodeStatus");
   var clearImportBtn = $("clearImportBtn");
-  var statusFilter = $("statusFilter");
   var visitedFilter = $("visitedFilter");
   var bldCount = $("bldCount");
   var bldListWrap = $("bldListWrap");
@@ -353,6 +458,7 @@
     catch (e){ alert("Couldn't save — local storage may be full or disabled."); }
   }
 
+  function loadBuildings(){ return loadJson(BUILDINGS_KEY, []); }
   function saveBuildings(){ saveJson(BUILDINGS_KEY, buildings); }
 
   function normalizeBuilding(b){
@@ -361,11 +467,11 @@
   function getCompletedList(){
     return loadJson(COMPLETED_KEY, []);
   }
-  function isVisited(building){
-    return getCompletedList().indexOf(normalizeBuilding(building)) !== -1;
+  function isVisited(address){
+    return getCompletedList().indexOf(normalizeBuilding(address)) !== -1;
   }
-  function toggleVisited(building){
-    var norm = normalizeBuilding(building);
+  function toggleVisited(address){
+    var norm = normalizeBuilding(address);
     var list = getCompletedList();
     var idx = list.indexOf(norm);
     if (idx >= 0){ list.splice(idx, 1); } else { list.push(norm); }
@@ -383,102 +489,71 @@
       .replace(/"/g, "&quot;");
   }
 
-  // ---------- CSV import ----------
+  // ---------- Import Address List (plain text, one per line — a simple CSV works too) ----------
 
-  function parseCsv(text){
-    var rows = [];
-    var row = [];
-    var field = "";
-    var inQuotes = false;
-    var i = 0, len = text.length;
-    while (i < len){
-      var c = text[i];
-      if (inQuotes){
-        if (c === '"'){
-          if (text[i + 1] === '"'){ field += '"'; i += 2; continue; }
-          inQuotes = false; i++; continue;
-        }
-        field += c; i++; continue;
-      } else {
-        if (c === '"'){ inQuotes = true; i++; continue; }
-        if (c === ','){ row.push(field); field = ""; i++; continue; }
-        if (c === '\r'){ i++; continue; }
-        if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
-        field += c; i++; continue;
+  function parseAddressLines(text){
+    var lines = (text || "").split(/\r\n|\r|\n/);
+    var addresses = [];
+    lines.forEach(function(line){
+      var trimmed = line.trim();
+      if (!trimmed) return;
+      // Strip a whole-line CSV quote wrap, if present.
+      if (trimmed.charAt(0) === '"' && trimmed.charAt(trimmed.length - 1) === '"'){
+        trimmed = trimmed.slice(1, -1).replace(/""/g, '"');
       }
-    }
-    if (field.length || row.length){ row.push(field); rows.push(row); }
-    return rows.filter(function(r){ return r.length > 1 || (r.length === 1 && r[0].trim() !== ""); });
-  }
-
-  function mapHeaders(headerRow){
-    var map = {};
-    headerRow.forEach(function(h, idx){
-      var key = (h || "").trim().toLowerCase();
-      if (map.name === undefined && /name/.test(key)) map.name = idx;
-      else if (map.address === undefined && /(address|addr)/.test(key)) map.address = idx;
-      else if (map.city === undefined && /city/.test(key)) map.city = idx;
-      else if (map.state === undefined && /state/.test(key)) map.state = idx;
-      else if (map.zip === undefined && /(zip|postal)/.test(key)) map.zip = idx;
-      else if (map.notes === undefined && /note/.test(key)) map.notes = idx;
-      else if (map.status === undefined && /status/.test(key)) map.status = idx;
+      // A line with no digits at all is almost certainly a header
+      // ("Address", "Name,Address,City"...) rather than a real address.
+      if (!/\d/.test(trimmed)) return;
+      addresses.push(trimmed);
     });
-    return map;
+    return addresses;
   }
 
-  function importCsvText(text){
-    var rows = parseCsv(text);
-    if (!rows.length){
-      alert("That CSV looks empty.");
-      return;
-    }
-    var headerMap = mapHeaders(rows[0]);
-    if (headerMap.address === undefined){
-      alert("Couldn't find an Address column. Make sure your CSV has a header row with at least an Address column.");
+  function importAddresses(rawText){
+    var lines = parseAddressLines(rawText);
+    if (!lines.length){
+      alert("Couldn't find any addresses — make sure there's at least one street number per line.");
       return;
     }
 
-    if (buildings.length){
-      var ok = confirm("Importing will replace your current list of " + buildings.length + " building(s). Continue?");
-      if (!ok) return;
-    }
+    var existingKeys = {};
+    buildings.forEach(function(b){ existingKeys[normalizeSearch(b.address)] = true; });
 
-    var imported = [];
-    for (var i = 1; i < rows.length; i++){
-      var r = rows[i];
-      var get = function(key){
-        var idx = headerMap[key];
-        return (idx !== undefined && r[idx] !== undefined) ? r[idx].trim() : "";
-      };
-      var address = get("address");
-      if (!address) continue;
-      imported.push({
-        id: "b" + i,
-        name: get("name"),
-        address: address,
-        city: get("city"),
-        state: get("state"),
-        zip: get("zip"),
-        notes: get("notes"),
-        status: get("status"),
+    var added = [];
+    var skipped = 0;
+    lines.forEach(function(addr){
+      var key = normalizeSearch(addr);
+      if (existingKeys[key]){ skipped++; return; }
+      existingKeys[key] = true;
+      added.push({
+        id: "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        address: addr,
+        displayName: extractDisplayName(addr),
+        notes: "",
+        status: "",
         lat: null,
         lng: null,
         geocodeFailed: false
       });
-    }
+    });
 
-    if (!imported.length){
-      alert("No rows with an Address value were found.");
+    if (!added.length){
+      alert("Nothing new to add — every address there is already in the list.");
       return;
     }
 
-    buildings = imported;
+    buildings = buildings.concat(added);
     saveBuildings();
     renderAll();
-    alert("Imported " + imported.length + " building(s). Tap \"Locate Imported Buildings\" to put them on the map.");
+    alert("Added " + added.length + " building(s)" + (skipped ? " (" + skipped + " already in the list, skipped)" : "") + ". Tap \"Locate Buildings\" to put them on the map.");
   }
 
-  importBtn.addEventListener("click", function(){
+  importPasteBtn.addEventListener("click", function(){
+    importAddresses(pasteInput.value);
+    pasteInput.value = "";
+  });
+
+  importFileBtn.addEventListener("click", function(){
     csvInput.value = "";
     csvInput.click();
   });
@@ -487,16 +562,16 @@
     var file = e.target.files && e.target.files[0];
     if (!file) return;
     var reader = new FileReader();
-    reader.onload = function(ev){ importCsvText(ev.target.result || ""); };
+    reader.onload = function(ev){ importAddresses(ev.target.result || ""); };
     reader.readAsText(file);
   });
 
   clearImportBtn.addEventListener("click", function(){
     if (!buildings.length){
-      alert("There's nothing imported yet.");
+      alert("There's nothing to clear.");
       return;
     }
-    var ok = confirm("Clear all " + buildings.length + " imported building(s)? This only clears this planner's list — it does not affect your saved scan entries or visited marks.");
+    var ok = confirm("Clear all " + buildings.length + " building(s) from the shared list? This affects both the Scanner and Map pages' search, but does not affect your saved scan entries or visited marks.");
     if (!ok) return;
     buildings = [];
     saveBuildings();
@@ -506,7 +581,7 @@
   // ---------- geocoding (free OpenStreetMap Nominatim, rate-limited) ----------
 
   function fullAddressKey(b){
-    return [b.address, b.city, b.state, b.zip].filter(Boolean).join(", ").trim().toLowerCase();
+    return normalizeSearch(b.address);
   }
 
   function sleep(ms){
@@ -550,7 +625,7 @@
 
   function runGeocoding(){
     if (!buildings.length){
-      alert("Import a CSV first.");
+      alert("Import an address list first.");
       return;
     }
     var cache = getGeocodeCache();
@@ -576,22 +651,24 @@
     }
 
     geocodeBtn.disabled = true;
-    importBtn.disabled = true;
+    importPasteBtn.disabled = true;
+    importFileBtn.disabled = true;
 
     var i = 0;
     function next(){
       if (i >= toFetch.length){
         geocodeBtn.disabled = false;
-        importBtn.disabled = false;
+        importPasteBtn.disabled = false;
+        importFileBtn.disabled = false;
         updateGeocodeHint();
         saveBuildings();
         renderAll();
         return;
       }
       var b = toFetch[i];
-      geocodeStatus.textContent = "Locating " + (i + 1) + " of " + toFetch.length + ": " + (b.name || b.address) + "…";
+      geocodeStatus.textContent = "Locating " + (i + 1) + " of " + toFetch.length + ": " + (b.displayName || b.address) + "…";
       var key = fullAddressKey(b);
-      geocodeOne(key).then(function(result){
+      geocodeOne(b.address).then(function(result){
         if (result){
           b.lat = result.lat;
           b.lng = result.lng;
@@ -629,11 +706,11 @@
   function mapsLinks(b){
     var apple, google;
     if (b.lat != null){
-      var label = encodeURIComponent(b.name || b.address);
+      var label = encodeURIComponent(b.displayName || b.address);
       apple = "https://maps.apple.com/?q=" + label + "&ll=" + b.lat + "," + b.lng;
       google = "https://www.google.com/maps/search/?api=1&query=" + b.lat + "," + b.lng;
     } else {
-      var q = encodeURIComponent([b.address, b.city, b.state, b.zip].filter(Boolean).join(", "));
+      var q = encodeURIComponent(b.address || "");
       apple = "https://maps.apple.com/?q=" + q;
       google = "https://www.google.com/maps/search/?api=1&query=" + q;
     }
@@ -642,13 +719,10 @@
 
   function buildPopupHtml(b){
     var visited = isVisited(b.address);
-    var addrFull = [b.address, b.city, (b.state + " " + b.zip).trim()].filter(Boolean).join(", ");
     var links = mapsLinks(b);
     return '<div class="popup-card" data-id="' + b.id + '">' +
-      "<strong>" + escapeHtml(b.name || "(no name)") + "</strong><br>" +
-      escapeHtml(addrFull) +
-      (b.status ? '<br><span class="popup-status">' + escapeHtml(b.status) + "</span>" : "") +
-      (b.notes ? '<div class="popup-notes">' + escapeHtml(b.notes) + "</div>" : "") +
+      "<strong>" + escapeHtml(b.displayName || b.address) + "</strong>" +
+      '<div class="popup-sub">' + escapeHtml(b.address) + "</div>" +
       '<div class="popup-actions">' +
         '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple Maps</a>' +
         '<a href="' + links.google + '" target="_blank" rel="noopener">Google Maps</a>' +
@@ -675,10 +749,10 @@
   }
 
   function getFilteredBuildings(){
-    var statusVal = statusFilter.value;
+    var nq = normalizeSearch(searchInput.value);
     var visitedVal = visitedFilter.value;
     return buildings.filter(function(b){
-      if (statusVal && (b.status || "") !== statusVal) return false;
+      if (nq && normalizeSearch(b.address).indexOf(nq) === -1) return false;
       if (visitedVal === "visited" && !isVisited(b.address)) return false;
       if (visitedVal === "not" && isVisited(b.address)) return false;
       return true;
@@ -706,24 +780,6 @@
     }
   }
 
-  // ---------- status filter options ----------
-
-  function refreshStatusOptions(){
-    var current = statusFilter.value;
-    var distinct = [];
-    buildings.forEach(function(b){
-      var s = (b.status || "").trim();
-      if (s && distinct.indexOf(s) === -1) distinct.push(s);
-    });
-    distinct.sort(function(a, b){ return a.localeCompare(b); });
-    var html = '<option value="">All statuses</option>';
-    distinct.forEach(function(s){
-      html += '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + "</option>";
-    });
-    statusFilter.innerHTML = html;
-    if (distinct.indexOf(current) !== -1) statusFilter.value = current;
-  }
-
   // ---------- building list ----------
 
   function renderBuildingList(){
@@ -731,11 +787,11 @@
     bldCount.textContent = filtered.length + (filtered.length !== buildings.length ? " / " + buildings.length : "");
 
     if (!buildings.length){
-      bldListWrap.innerHTML = '<div class="empty">No buildings imported yet. Import a CSV above to get started.</div>';
+      bldListWrap.innerHTML = '<div class="empty">No buildings yet. Import a list above to get started.</div>';
       return;
     }
     if (!filtered.length){
-      bldListWrap.innerHTML = '<div class="empty">No buildings match the current filters.</div>';
+      bldListWrap.innerHTML = '<div class="empty">No buildings match the current search/filter.</div>';
       return;
     }
 
@@ -743,15 +799,12 @@
     filtered.forEach(function(b){
       var visited = isVisited(b.address);
       var links = mapsLinks(b);
-      var addrLine = [b.address, b.city, b.state].filter(Boolean).join(", ");
       html += '<div class="map-row" data-id="' + b.id + '">' +
         '<div class="map-row-main">' +
-          '<span class="map-row-name">' + escapeHtml(b.name || b.address) + "</span>" +
+          '<span class="map-row-name">' + escapeHtml(b.displayName || b.address) + "</span>" +
           (visited ? '<span class="map-row-check">✓ Visited</span>' : "") +
         "</div>" +
-        '<div class="map-row-sub">' + escapeHtml(addrLine) + "</div>" +
-        (b.status ? '<div class="map-row-status">' + escapeHtml(b.status) + "</div>" : "") +
-        (b.notes ? '<div class="map-row-notes">' + escapeHtml(b.notes) + "</div>" : "") +
+        '<div class="map-row-sub">' + escapeHtml(b.address) + "</div>" +
         (b.lat == null ? '<div class="map-row-warn">⚠ ' + (b.geocodeFailed ? "Couldn't locate this address" : "Not located yet") + "</div>" : "") +
         '<div class="map-row-actions">' +
           '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple</a>' +
@@ -788,13 +841,12 @@
   // ---------- render everything ----------
 
   function renderAll(){
-    refreshStatusOptions();
     renderMarkersOnly();
     renderBuildingList();
     updateGeocodeHint();
   }
 
-  statusFilter.addEventListener("change", function(){
+  searchInput.addEventListener("input", function(){
     renderMarkersOnly();
     renderBuildingList();
   });
@@ -805,7 +857,8 @@
 
   // ---------- init ----------
 
-  buildings = loadJson(BUILDINGS_KEY, []);
+  seedBuildingsIfEmpty();
+  buildings = loadBuildings();
   renderAll();
 
 })();
