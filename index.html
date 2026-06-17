@@ -148,6 +148,16 @@
     color:var(--ink);
     border-style:solid;
   }
+  textarea.paste-box{
+    min-height:140px;
+    font-family:var(--sans);
+    font-size:1.05rem;
+    color:var(--ink);
+    border-style:solid;
+    border-color:var(--go);
+    background:#fff;
+  }
+  textarea.paste-box:focus{ outline:none; border-color:var(--go-dark); }
 
   .btn{
     display:flex;
@@ -169,7 +179,7 @@
   .btn:first-child{ margin-top:0; }
   .btn:disabled{ opacity:0.45; cursor:not-allowed; transform:none; }
 
-  .btn-biggest{ min-height:76px; font-size:1.22rem; letter-spacing:0.01em; }
+  .btn-biggest{ min-height:78px; font-size:1.24rem; letter-spacing:0.01em; }
   .btn-sm{ min-height:44px; font-size:0.85rem; }
 
   .btn-primary{ background:var(--safety); }
@@ -195,6 +205,32 @@
   .btn-row .btn{ margin-top:10px; }
 
   .hint{ font-size:0.75rem; color:var(--muted); margin-top:6px; line-height:1.4; }
+
+  .instructions{
+    background:#eef2ee;
+    border:1px solid var(--go);
+    color:var(--go-dark);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:0.85rem;
+    line-height:1.4;
+    margin-bottom:12px;
+  }
+
+  .shortcut-help{ margin-bottom:12px; }
+  .shortcut-help summary{
+    font-size:0.8rem;
+    font-weight:700;
+    color:var(--ink);
+    cursor:pointer;
+    padding:4px 0;
+  }
+  .shortcut-steps{ margin:8px 0 2px; padding-left:20px; font-size:0.82rem; line-height:1.55; color:var(--ink); }
+  .shortcut-steps li{ margin-bottom:6px; }
+
+  .webocr-details{ margin-top:16px; border-top:1px dashed var(--line); padding-top:12px; }
+  .webocr-details summary{ font-size:0.78rem; font-weight:700; color:var(--muted); cursor:pointer; }
+  .webocr-panel{ margin-top:10px; }
 
   .parse-hint{
     background:#fdf1ea;
@@ -428,7 +464,7 @@
 
 <header>
   <h1>BUILDING SURVEY SCANNER</h1>
-  <div class="sub">field tool · on-device OCR · no accounts, no cloud</div>
+  <div class="sub">field tool · Apple OCR paste · no accounts, no cloud</div>
 </header>
 <div class="stripe"></div>
 
@@ -469,23 +505,48 @@
   </section>
 
   <section>
-    <h2>Scan a Suite Plaque</h2>
-    <img id="preview" alt="captured plaque preview">
-    <div class="status" id="status">
-      <span id="statusText">Working…</span>
-      <div class="bar"><i id="statusBar"></i></div>
-    </div>
+    <h2>Add an Entry</h2>
 
-    <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display:none">
-    <button class="btn btn-primary" id="scanBtn">📷 SCAN PLAQUE</button>
-    <button class="btn btn-ghost" id="manualBtn">✏️ ENTER MANUALLY (NO PHOTO)</button>
+    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then return here and paste.</div>
+
+    <details class="shortcut-help">
+      <summary>First time? Set up the "Apple OCR Paste" Shortcut →</summary>
+      <ol class="shortcut-steps">
+        <li>Open the <strong>Shortcuts</strong> app on your iPhone.</li>
+        <li>Tap <strong>+</strong> to create a new shortcut and name it "Apple OCR Paste."</li>
+        <li>Add the action <strong>Take Photo</strong> (or <strong>Select Photos</strong> to use one you already took).</li>
+        <li>Add the action <strong>Extract Text from Image</strong> — this is Apple's built-in Live Text recognition, fully on-device.</li>
+        <li>Add the action <strong>Copy to Clipboard</strong>.</li>
+        <li>Optional: add the shortcut to your Home Screen or the Share Sheet for one-tap access.</li>
+        <li>Run it on a suite plaque, then come back to this page and paste below.</li>
+      </ol>
+    </details>
+
+    <label for="appleOcrPaste">Paste Apple OCR text</label>
+    <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then paste the text your Shortcut copied (long-press → Paste)."></textarea>
+    <button class="btn btn-primary" id="parsePasteBtn">⬇ PARSE PASTED TEXT</button>
+    <button class="btn btn-ghost" id="manualBtn">✏️ ENTER MANUALLY (NO TEXT)</button>
+
+    <details class="webocr-details">
+      <summary>Try Web OCR (optional, on-device, usually less accurate)</summary>
+      <div class="webocr-panel">
+        <img id="preview" alt="captured plaque preview">
+        <div class="status" id="status">
+          <span id="statusText">Working…</span>
+          <div class="bar"><i id="statusBar"></i></div>
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display:none">
+        <button class="btn btn-ghost" id="scanBtn">📷 SCAN WITH WEB OCR</button>
+        <div class="hint">Runs Tesseract.js fully in your browser, on-device. Usually less accurate than Apple's built-in OCR above. The engine (~2–3MB) loads from a free CDN the first time you use it, then it's cached.</div>
+      </div>
+    </details>
   </section>
 
   <section id="reviewSection" style="display:none;">
     <h2>Confirm &amp; Edit</h2>
 
-    <label for="rawText">Raw OCR text</label>
-    <textarea id="rawText" readonly placeholder="No OCR text — manual entry."></textarea>
+    <label for="rawText">Raw text (reference)</label>
+    <textarea id="rawText" readonly placeholder="No text yet — paste Apple OCR text above, or enter manually."></textarea>
 
     <div class="parse-hint" id="parseHint"></div>
 
@@ -505,20 +566,16 @@
     <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
     <textarea id="notes" placeholder="Any remarks. Auto-filled with raw text if the company name wasn't clear. You can dictate this with the iPhone keyboard's mic button."></textarea>
 
-    <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + SCAN NEXT</button>
-    <button class="btn btn-primary" id="saveManualNextBtn">✏️ SAVE + MANUAL NEXT</button>
+    <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
     <button class="btn btn-ghost" id="saveBtn">✔ SAVE ROW (STOP HERE)</button>
-    <div class="btn-row">
-      <button class="btn btn-ghost" id="retakeBtn">↻ RETAKE</button>
-      <button class="btn btn-stop" id="discardBtn">✕ DISCARD</button>
-    </div>
+    <button class="btn btn-stop" id="discardBtn">✕ DISCARD</button>
   </section>
 
   <section>
     <h2>Saved Rows <span class="count-pill" id="rowCount">0</span></h2>
     <button class="btn btn-ghost" id="undoBtn" disabled>↶ UNDO LAST SAVE</button>
     <div id="rowsWrap" style="margin-top:10px;">
-      <div class="empty">No rows saved yet. Scan a plaque to get started.</div>
+      <div class="empty">No rows saved yet. Paste OCR text or scan a plaque to get started.</div>
     </div>
   </section>
 
@@ -534,7 +591,7 @@
 <div class="origin-note" id="originNote"></div>
 <footer>
   Rows are saved on this device only, tied to this exact web address.<br>
-  First scan needs internet once to load the free OCR engine, then it's cached for reuse.
+  Apple OCR Paste needs no internet for OCR. Web OCR (optional) needs internet once, to load its engine.
 </footer>
 
 <div class="reminder" id="exportReminder">
@@ -545,7 +602,6 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -606,6 +662,8 @@
   var markCompleteBtn = $("markCompleteBtn");
   var floorInput = $("floor");
   var nextFloorDownBtn = $("nextFloorDownBtn");
+  var appleOcrPaste = $("appleOcrPaste");
+  var parsePasteBtn = $("parsePasteBtn");
   var cameraInput = $("cameraInput");
   var scanBtn = $("scanBtn");
   var manualBtn = $("manualBtn");
@@ -621,8 +679,6 @@
   var rawText = $("rawText");
   var saveBtn = $("saveBtn");
   var saveNextBtn = $("saveNextBtn");
-  var saveManualNextBtn = $("saveManualNextBtn");
-  var retakeBtn = $("retakeBtn");
   var discardBtn = $("discardBtn");
   var undoBtn = $("undoBtn");
   var rowsWrap = $("rowsWrap");
@@ -644,6 +700,7 @@
 
   var editingRowId = null;
   var activeArea = Object.keys(BUILDING_AREAS)[0];
+  var RAW_PLACEHOLDER = "No text yet — paste Apple OCR text above, or enter manually.";
 
   // ---------- storage availability check ----------
   // GitHub Pages serves over https, so localStorage is reliable here.
@@ -914,18 +971,49 @@
     statusBox.classList.remove("show");
   }
 
-  // ---------- camera / manual entry ----------
+  // ---------- shared review helpers ----------
 
-  scanBtn.addEventListener("click", function(){
-    cameraInput.value = "";
-    cameraInput.click();
-  });
+  function showParseHint(msg){
+    parseHint.textContent = "⚠ " + msg;
+    parseHint.classList.add("show");
+  }
+  function hideParseHint(){
+    parseHint.classList.remove("show");
+  }
+
+  function openReview(){
+    reviewSection.style.display = "block";
+    reviewSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Auto-focus: suite first if missing, otherwise company. Small delay
+    // helps iOS Safari reliably raise the keyboard after the scroll/layout.
+    setTimeout(function(){
+      if (!suiteInput.value.trim()){
+        suiteInput.focus();
+      } else {
+        companyInput.focus();
+      }
+    }, 300);
+  }
+
+  function applyParsedToReview(parsed){
+    rawText.value = parsed.raw;
+    suiteInput.value = parsed.suite;
+    companyInput.value = parsed.company;
+    notesInput.value = parsed.notes;
+    if (parsed.notes){
+      showParseHint("Couldn't confidently identify a company name. Raw text was copied into Notes below — please check it and type the company name in manually.");
+    } else {
+      hideParseHint();
+    }
+    openReview();
+  }
 
   function startManualEntry(){
     preview.style.display = "none";
     preview.src = "";
+    appleOcrPaste.value = "";
     rawText.value = "";
-    rawText.placeholder = "No OCR text — manual entry.";
+    rawText.placeholder = RAW_PLACEHOLDER;
     suiteInput.value = "";
     companyInput.value = "";
     notesInput.value = "";
@@ -934,6 +1022,59 @@
   }
 
   manualBtn.addEventListener("click", startManualEntry);
+
+  // ---------- Apple OCR Paste (primary workflow) ----------
+
+  function handlePastedText(text){
+    if (!text || !text.trim()){
+      alert("Paste box is empty — copy the OCR text from your Shortcut first, then paste here.");
+      return;
+    }
+    var parsed = parseRawText(text);
+    applyParsedToReview(parsed);
+  }
+
+  parsePasteBtn.addEventListener("click", function(){
+    handlePastedText(appleOcrPaste.value);
+  });
+
+  appleOcrPaste.addEventListener("paste", function(){
+    // Read after a short delay so the pasted text has actually landed in the field.
+    setTimeout(function(){ handlePastedText(appleOcrPaste.value); }, 60);
+  });
+
+  // ---------- Web OCR (optional, lazy-loaded Tesseract.js) ----------
+
+  var tesseractLoading = false;
+  var tesseractCallbacks = [];
+
+  function ensureTesseractLoaded(callback){
+    if (typeof Tesseract !== "undefined"){
+      callback();
+      return;
+    }
+    tesseractCallbacks.push(callback);
+    if (tesseractLoading) return;
+    tesseractLoading = true;
+    var s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js";
+    s.onload = function(){
+      tesseractCallbacks.forEach(function(cb){ cb(); });
+      tesseractCallbacks = [];
+    };
+    s.onerror = function(){
+      tesseractLoading = false;
+      tesseractCallbacks = [];
+      hideStatus();
+      alert("Couldn't load the Web OCR engine (probably no internet). Use Apple OCR Paste instead, or try Web OCR again with a connection.");
+    };
+    document.head.appendChild(s);
+  }
+
+  scanBtn.addEventListener("click", function(){
+    cameraInput.value = "";
+    cameraInput.click();
+  });
 
   cameraInput.addEventListener("change", function(e){
     var file = e.target.files && e.target.files[0];
@@ -969,75 +1110,35 @@
 
   function runOcr(canvasOrImage){
     reviewSection.style.display = "none";
-    showStatus("Reading plaque… this can take 10–20 seconds.", 5);
+    showStatus("Loading Web OCR engine…", 0);
 
-    if (typeof Tesseract === "undefined"){
-      hideStatus();
-      alert("The OCR engine couldn't load (usually no internet for the first-time download). You can still use ENTER MANUALLY below.");
-      rawText.value = "";
-      rawText.placeholder = "OCR engine unavailable — enter manually.";
-      suiteInput.value = "";
-      companyInput.value = "";
-      notesInput.value = "";
-      hideParseHint();
-      openReview();
-      return;
-    }
+    ensureTesseractLoaded(function(){
+      showStatus("Reading plaque… this can take 10–20 seconds.", 5);
 
-    Tesseract.recognize(canvasOrImage, "eng", {
-      logger: function(m){
-        if (m.status && typeof m.progress === "number"){
-          var label = m.status.replace(/_/g, " ");
-          showStatus("OCR: " + label + "…", Math.round(m.progress * 100));
+      Tesseract.recognize(canvasOrImage, "eng", {
+        logger: function(m){
+          if (m.status && typeof m.progress === "number"){
+            var label = m.status.replace(/_/g, " ");
+            showStatus("OCR: " + label + "…", Math.round(m.progress * 100));
+          }
         }
-      }
-    }).then(function(result){
-      hideStatus();
-      var parsed = parseOcrResult(result);
-      rawText.value = parsed.raw;
-      suiteInput.value = parsed.suite;
-      companyInput.value = parsed.company;
-      notesInput.value = parsed.notes;
-      if (parsed.notes){
-        showParseHint("Couldn't confidently identify a company name. Raw OCR text was copied into Notes below — please check it and type the company name in manually.");
-      } else {
+      }).then(function(result){
+        hideStatus();
+        var parsed = parseOcrResult(result);
+        applyParsedToReview(parsed);
+      }).catch(function(err){
+        hideStatus();
+        console.error(err);
+        alert("Web OCR failed to read this image. Try better lighting, use Apple OCR Paste instead, or enter the details manually.");
+        rawText.value = "";
+        rawText.placeholder = "Web OCR failed — paste Apple OCR text, or enter manually.";
+        suiteInput.value = "";
+        companyInput.value = "";
+        notesInput.value = "";
         hideParseHint();
-      }
-      openReview();
-    }).catch(function(err){
-      hideStatus();
-      console.error(err);
-      alert("OCR failed to read this image. Try retaking the photo with better lighting, or enter the details manually.");
-      rawText.value = "";
-      rawText.placeholder = "OCR failed — enter manually.";
-      suiteInput.value = "";
-      companyInput.value = "";
-      notesInput.value = "";
-      hideParseHint();
-      openReview();
+        openReview();
+      });
     });
-  }
-
-  function showParseHint(msg){
-    parseHint.textContent = "⚠ " + msg;
-    parseHint.classList.add("show");
-  }
-  function hideParseHint(){
-    parseHint.classList.remove("show");
-  }
-
-  function openReview(){
-    reviewSection.style.display = "block";
-    reviewSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    // Auto-focus: suite first if missing, otherwise company. Small delay
-    // helps iOS Safari reliably raise the keyboard after the scroll/layout.
-    setTimeout(function(){
-      if (!suiteInput.value.trim()){
-        suiteInput.focus();
-      } else {
-        companyInput.focus();
-      }
-    }, 300);
   }
 
   // ---------- quick buttons ----------
@@ -1062,7 +1163,7 @@
   });
   qDirectory.addEventListener("click", function(){ applyQuickLabel("DIRECTORY ONLY"); });
 
-  // ---------- OCR text parsing ----------
+  // ---------- text parsing (shared by Apple OCR Paste and Web OCR) ----------
 
   function splitLines(text){
     return (text || "").split("\n")
@@ -1116,7 +1217,8 @@
     return { company: company, notes: notes };
   }
 
-  // Fallback suite detection using plain text/lines only (no word coordinates).
+  // Suite detection from plain text/lines (used for both Apple OCR Paste
+  // and as the Web OCR fallback when word coordinates aren't available).
   function determineSuiteFromText(lines){
     for (var i = 0; i < lines.length; i++){
       var m = lines[i].match(SUITE_KEYWORD_LINE_REGEX);
@@ -1153,8 +1255,9 @@
     return { suite: pool[0].text.toUpperCase(), lineIndex: pool[0].idx };
   }
 
-  // Preferred suite detection using word-level bounding boxes from Tesseract,
-  // so "closest to the words Suite / Ste / #" is a real spatial measurement.
+  // Preferred suite detection for Web OCR using word-level bounding boxes
+  // from Tesseract, so "closest to the words Suite / Ste / #" is a real
+  // spatial measurement rather than just line order.
   function determineSuiteFromWords(words, lines){
     var KEYWORD_RE = /^(suite|ste|ofc|office|room|rm|unit|no|#)$/i;
     var NUMBER_RE = /^#?\d{1,4}(?:[.\-]\d{1,4})?[a-z]?$/i;
@@ -1232,6 +1335,20 @@
     return { suite: suiteValue, lineIndex: lineIndex };
   }
 
+  // Used by Apple OCR Paste: plain pasted text, no coordinates available.
+  function parseRawText(text){
+    var lines = splitLines(text);
+    var suiteInfo = determineSuiteFromText(lines);
+    var companyInfo = buildCompanyAndNotes(lines, suiteInfo.lineIndex, text);
+    return {
+      suite: suiteInfo.suite || "",
+      company: companyInfo.company || "",
+      notes: companyInfo.notes || "",
+      raw: text.trim()
+    };
+  }
+
+  // Used by Web OCR: Tesseract result, with word coordinates when available.
   function parseOcrResult(result){
     var text = (result && result.data && result.data.text) || "";
     var words = (result && result.data && result.data.words) || null;
@@ -1256,11 +1373,6 @@
 
   // ---------- save / discard ----------
 
-  retakeBtn.addEventListener("click", function(){
-    cameraInput.value = "";
-    cameraInput.click();
-  });
-
   discardBtn.addEventListener("click", function(){
     resetScanArea();
   });
@@ -1269,11 +1381,12 @@
     reviewSection.style.display = "none";
     preview.style.display = "none";
     preview.src = "";
+    appleOcrPaste.value = "";
     suiteInput.value = "";
     companyInput.value = "";
     notesInput.value = "";
     rawText.value = "";
-    rawText.placeholder = "No OCR text — manual entry.";
+    rawText.placeholder = RAW_PLACEHOLDER;
     hideParseHint();
   }
 
@@ -1357,15 +1470,8 @@
     var ok = performSave();
     if (ok){
       resetScanArea();
-      cameraInput.value = "";
-      cameraInput.click();
-    }
-  });
-
-  saveManualNextBtn.addEventListener("click", function(){
-    var ok = performSave();
-    if (ok){
-      startManualEntry();
+      appleOcrPaste.scrollIntoView({ behavior: "smooth", block: "start" });
+      setTimeout(function(){ appleOcrPaste.focus(); }, 300);
     }
   });
 
@@ -1416,7 +1522,7 @@
     rowCount.textContent = rows.length;
 
     if (!rows.length){
-      rowsWrap.innerHTML = '<div class="empty">No rows saved yet. Scan a plaque to get started.</div>';
+      rowsWrap.innerHTML = '<div class="empty">No rows saved yet. Paste OCR text or scan a plaque to get started.</div>';
       return;
     }
 
