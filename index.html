@@ -349,21 +349,6 @@
     border-color:var(--go);
   }
 
-  .quick-vacant-btn{
-    width:100%;
-    min-height:46px;
-    border-radius:10px;
-    border:2px solid var(--line);
-    background:#fff;
-    color:var(--ink);
-    font-weight:700;
-    font-size:0.85rem;
-    letter-spacing:0.02em;
-    cursor:pointer;
-    margin-top:10px;
-  }
-  .quick-vacant-btn:active{ background:var(--paper); }
-
   /* condensed job setup */
   .job-row{
     display:flex;
@@ -563,6 +548,117 @@
   }
   .reminder .rem-export{ background:var(--safety); color:#fff; }
   .reminder .rem-dismiss{ background:#3a3f44; color:#fff; }
+
+  /* ── Saved rows: building/floor folder groups ── */
+  .bld-group{ margin-bottom:10px; }
+  .bld-group-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--ink);
+    color:#fff;
+    border-radius:10px;
+    padding:9px 12px;
+    cursor:pointer;
+    font-size:0.82rem;
+    font-weight:700;
+    letter-spacing:0.03em;
+    user-select:none;
+  }
+  .bld-group-header .grp-arrow{ transition:transform 0.18s; margin-left:8px; }
+  .bld-group-header.collapsed .grp-arrow{ transform:rotate(-90deg); }
+  .bld-group-body{ margin-top:4px; }
+  .bld-group-body.collapsed{ display:none; }
+  .floor-group{ margin-bottom:8px; margin-left:4px; }
+  .floor-group-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:7px 12px;
+    cursor:pointer;
+    font-size:0.76rem;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    user-select:none;
+  }
+  .floor-group-header .grp-arrow{ transition:transform 0.18s; margin-left:8px; }
+  .floor-group-header.collapsed .grp-arrow{ transform:rotate(-90deg); }
+  .floor-group-body{ margin-top:3px; }
+  .floor-group-body.collapsed{ display:none; }
+
+  /* ── Quick SF % buttons ── */
+  .sf-pct-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+    margin:5px 0 2px;
+  }
+  .sf-pct-btn{
+    flex:0 0 auto;
+    min-height:36px;
+    padding:0 10px;
+    border-radius:8px;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-weight:700;
+    font-size:0.76rem;
+    cursor:pointer;
+  }
+  .sf-pct-btn:active{ background:var(--paper); }
+
+  /* ── Quick notes chips ── */
+  .notes-chips-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+    margin:5px 0 2px;
+  }
+  .notes-chip{
+    min-height:34px;
+    padding:0 10px;
+    border-radius:8px;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-weight:600;
+    font-size:0.74rem;
+    cursor:pointer;
+  }
+  .notes-chip:active{ background:var(--paper); }
+
+  /* ── Vacant button — prominent, right under Company ── */
+  .quick-vacant-btn{
+    width:100%;
+    min-height:46px;
+    border-radius:10px;
+    border:2px solid var(--safety);
+    background:var(--safety);
+    color:#fff;
+    font-weight:700;
+    font-size:0.92rem;
+    letter-spacing:0.04em;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .quick-vacant-btn:active{ background:var(--safety-dark); border-color:var(--safety-dark); }
+
+  /* ── Full-row edit modal ── */
+  .full-edit-row td{ background:#eef2ee; }
+  .full-edit-wrap{
+    padding:10px 6px;
+  }
+  .full-edit-wrap label{ margin-top:10px; }
+  .full-edit-wrap label:first-of-type{ margin-top:0; }
+  .full-edit-wrap input[type="text"],
+  .full-edit-wrap textarea{
+    font-size:0.95rem;
+  }
 </style>
 </head>
 <body>
@@ -631,15 +727,31 @@
       <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
 
       <label for="company">Company name</label>
-      <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines."></textarea>
+      <button type="button" class="quick-vacant-btn" id="qVacant">📭 VACANT</button>
+      <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines." style="margin-top:6px;"></textarea>
 
       <label for="sf">Square footage (optional)</label>
-      <input type="text" id="sf" placeholder="e.g. 1,200" autocomplete="off">
+      <div class="sf-pct-row" id="sfPctRow">
+        <button type="button" class="sf-pct-btn" data-pct="10">10%</button>
+        <button type="button" class="sf-pct-btn" data-pct="20">20%</button>
+        <button type="button" class="sf-pct-btn" data-pct="30">30%</button>
+        <button type="button" class="sf-pct-btn" data-pct="40">40%</button>
+        <button type="button" class="sf-pct-btn" data-pct="50">50%</button>
+        <button type="button" class="sf-pct-btn" data-pct="60">60%</button>
+        <button type="button" class="sf-pct-btn" data-pct="70">70%</button>
+        <button type="button" class="sf-pct-btn" data-pct="80">80%</button>
+        <button type="button" class="sf-pct-btn" data-pct="90">90%</button>
+      </div>
+      <input type="text" id="sf" placeholder="e.g. 1,200 or 30%" autocomplete="off">
 
       <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
+      <div class="notes-chips-row">
+        <button type="button" class="notes-chip" data-note="Remodeled">Remodeled</button>
+        <button type="button" class="notes-chip" data-note="Needs Update">Needs Update</button>
+        <button type="button" class="notes-chip" data-note="Old">Old</button>
+        <button type="button" class="notes-chip" data-note="Good Condition">Good Condition</button>
+      </div>
       <textarea id="notes" placeholder="Any remarks. You can dictate this with the iPhone keyboard's mic button."></textarea>
-
-      <button type="button" class="quick-vacant-btn" id="qVacant">VACANT</button>
 
       <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
       <div class="btn-row">
@@ -1485,11 +1597,13 @@
       if (isJunkLine(line)) return;
 
       var words = line.split(/\s+/).filter(function(w){ return w.length > 0; });
+      var lineHasSuiteDigit = false;
       var lineCompanyWords = []; // words on this line with no suite pending yet
 
       words.forEach(function(word){
         if (isLabelWord(word)) return; // skip bare label words like "Suite"/"Ste"
         if (/^\d{1,5}$/.test(word)){
+          lineHasSuiteDigit = true;
           startNewSuite(word);
         } else if (pendingSuite !== null){
           pendingSuiteWords.push(word);
@@ -1499,7 +1613,16 @@
       });
 
       if (lineCompanyWords.length){
-        pendingCompanies.push(lineCompanyWords.join(" "));
+        // If we have no pending suite but we're after a suite that was just
+        // flushed, try to append to the LAST pair instead (multi-line company).
+        // This only applies when the line has NO suite digit on it at all.
+        if (!lineHasSuiteDigit && pairs.length && pendingCompanies.length === 0){
+          // Continuation line — join onto last pair's company
+          pairs[pairs.length - 1].company =
+            (pairs[pairs.length - 1].company + " " + lineCompanyWords.join(" ")).trim();
+        } else {
+          pendingCompanies.push(lineCompanyWords.join(" "));
+        }
       }
     });
 
@@ -1534,10 +1657,11 @@
     var seen = {};
     var entries = [];
     rawPairs.forEach(function(p){
-      var key = pairDedupeKey(p.suite, p.company);
-      if (seen[key]) return; // same suite + company already found — skip
+      var company = normalizeCompanyVacancy(p.company);
+      var key = pairDedupeKey(p.suite, company);
+      if (seen[key]) return; // exact suite + company duplicate — skip
       seen[key] = true;
-      entries.push({ suite: p.suite, company: p.company, sf: "", notes: "", raw: p.company });
+      entries.push({ suite: p.suite, company: company, sf: "", notes: "", raw: company });
     });
     return entries;
   }
@@ -1731,11 +1855,62 @@
   qVacant.addEventListener("click", function(){
     companyInput.value = "VACANT";
     saveDraft();
-    if (!suiteInput.value.trim()){
-      suiteInput.focus();
-    } else {
-      companyInput.blur();
-      suiteInput.blur();
+    sfInput.focus();
+  });
+
+  // ---------- SF % quick buttons ----------
+  document.getElementById("sfPctRow").addEventListener("click", function(e){
+    var btn = e.target.closest(".sf-pct-btn");
+    if (!btn) return;
+    sfInput.value = btn.getAttribute("data-pct") + "%";
+    saveDraft();
+    notesInput.focus();
+  });
+
+  // ---------- quick notes chips ----------
+  document.querySelector(".notes-chips-row").addEventListener("click", function(e){
+    var chip = e.target.closest(".notes-chip");
+    if (!chip) return;
+    var note = chip.getAttribute("data-note");
+    var cur = notesInput.value.trim();
+    notesInput.value = cur ? cur + ", " + note : note;
+    saveDraft();
+    notesInput.focus();
+  });
+
+  // ---------- keyboard flow: Enter moves between fields ----------
+  suiteInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); companyInput.focus(); }
+  });
+  // Company is a textarea — Enter in a single-line context should jump to SF.
+  // We only intercept Enter when there's no modifier (Shift+Enter still adds a newline).
+  companyInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sfInput.focus(); }
+  });
+  sfInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); notesInput.focus(); }
+  });
+  notesInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); saveNextBtn.click(); }
+  });
+
+  // ---------- auto-floor detection from suite number ----------
+  function detectFloorFromSuite(suiteVal){
+    var s = suiteVal.trim().replace(/\D/g, ""); // digits only
+    if (s.length === 3) return s[0];
+    if (s.length === 4) return s.slice(0, 2);
+    return null;
+  }
+
+  suiteInput.addEventListener("blur", function(){
+    var detected = detectFloorFromSuite(suiteInput.value);
+    if (!detected) return;
+    var cur = floorInput.value.trim();
+    // Only auto-fill if floor is blank
+    if (!cur){
+      floorInput.value = detected;
+      localStorage.setItem(FLOOR_KEY, detected);
+      updateStatusBar();
     }
   });
 
@@ -1754,6 +1929,16 @@
   //     never altered.
 
   var LABEL_WORD_REGEX = /\b(suite|ste|room)\b\.?/gi;
+
+  // Normalize vacancy synonyms in company names
+  var VACANCY_SYNONYMS = /^(available|for\s+lease|vacancy|vacant)$/i;
+  function normalizeCompanyVacancy(company){
+    var lines = company.split("\n").map(function(l){ return l.trim(); });
+    var normalized = lines.map(function(l){
+      return VACANCY_SYNONYMS.test(l) ? "VACANT" : l;
+    });
+    return normalized.join("\n");
+  }
 
   function parseRawText(text){
     var raw = (text || "");
@@ -1775,7 +1960,7 @@
 
     return {
       suite: suiteParts.join(", "),
-      company: companyLines.join("\n"),
+      company: normalizeCompanyVacancy(companyLines.join("\n")),
       raw: raw.trim()
     };
   }
@@ -1840,7 +2025,8 @@
     for (var i = 0; i < rows.length; i++){
       if (rows[i].building.toLowerCase() === building.toLowerCase() &&
           rows[i].floor.toLowerCase() === floor.toLowerCase() &&
-          rows[i].suite.toLowerCase() === suite.toLowerCase()){
+          rows[i].suite.toLowerCase() === suite.toLowerCase() &&
+          rows[i].company.toLowerCase() === company.toLowerCase()){
         dupIndex = i;
         break;
       }
@@ -1937,7 +2123,8 @@
       var isDup = rows.some(function(r){
         return r.building.toLowerCase() === building.toLowerCase() &&
           r.floor.toLowerCase() === floor.toLowerCase() &&
-          r.suite.toLowerCase() === suite.toLowerCase();
+          r.suite.toLowerCase() === suite.toLowerCase() &&
+          r.company.toLowerCase() === company.toLowerCase();
       });
       if (isDup){ skippedDup++; return; }
       rows.push({
@@ -2022,7 +2209,10 @@
     exportReminder.classList.remove("show");
   });
 
-  // ---------- render saved rows (with later-editable Notes) ----------
+  // ---------- render saved rows — grouped by building → floor, with full-row edit ----------
+
+  // Track which groups are collapsed (key = "bld||floor" or "bld")
+  var collapsedGroups = {};
 
   function renderRows(){
     var rows = getRows();
@@ -2034,48 +2224,112 @@
     }
 
     var sorted = rows.slice().sort(function(a, b){
-      var ka = (a.building + a.floor + a.suite).toLowerCase();
-      var kb = (b.building + b.floor + b.suite).toLowerCase();
+      var ka = (a.building + "|||" + a.floor + "|||" + a.suite).toLowerCase();
+      var kb = (b.building + "|||" + b.floor + "|||" + b.suite).toLowerCase();
       return ka < kb ? -1 : ka > kb ? 1 : 0;
     });
 
-    var html = '<table><thead><tr>' +
-      '<th>Suite</th><th>Company</th><th>Floor</th><th></th>' +
-      '</tr></thead><tbody>';
-
+    // Group: building -> floor -> [rows]
+    var bldOrder = [];
+    var bldMap = {};
     sorted.forEach(function(r){
-      var extra = '<div class="hint" style="margin-top:2px;">' + escapeHtml(r.building) + '</div>';
-      if (r.sf){
-        extra += '<div class="hint" style="margin-top:2px;">SF: ' + escapeHtml(r.sf) + '</div>';
+      var bk = r.building || "(no building)";
+      var fk = r.floor || "(no floor)";
+      if (!bldMap[bk]){
+        bldOrder.push(bk);
+        bldMap[bk] = { floorOrder: [], floorMap: {} };
       }
-      if (r.notes){
-        var notePreview = r.notes.length > 60 ? r.notes.slice(0, 60) + "…" : r.notes;
-        extra += '<div class="hint" style="margin-top:2px;">Note: ' + escapeHtml(notePreview) + '</div>';
+      var bld = bldMap[bk];
+      if (!bld.floorMap[fk]){
+        bld.floorOrder.push(fk);
+        bld.floorMap[fk] = [];
       }
-      html += '<tr>' +
-        '<td class="suite">' + escapeHtml(r.suite || "—") + '</td>' +
-        '<td class="company">' + escapeHtml(r.company || "—") + extra + '</td>' +
-        '<td>' + escapeHtml(r.floor) + '</td>' +
-        '<td class="actions">' +
-          '<button class="row-btn edit" data-id="' + r.id + '" title="Edit note">✎</button>' +
-          '<button class="row-btn del" data-id="' + r.id + '" title="Delete row">✕</button>' +
-        '</td>' +
-        '</tr>';
-
-      if (editingRowId === r.id){
-        html += '<tr><td colspan="4" style="padding:10px 6px;">' +
-          '<label style="margin-top:0;">Edit note for Suite ' + escapeHtml(r.suite || "—") + '</label>' +
-          '<textarea class="notes-edit" data-id="' + r.id + '">' + escapeHtml(r.notes || "") + '</textarea>' +
-          '<div class="btn-row">' +
-            '<button class="btn btn-save btn-sm note-save" data-id="' + r.id + '">Save Note</button>' +
-            '<button class="btn btn-ghost btn-sm note-cancel">Cancel</button>' +
-          '</div>' +
-          '</td></tr>';
-      }
+      bld.floorMap[fk].push(r);
     });
 
-    html += '</tbody></table>';
+    var html = "";
+    bldOrder.forEach(function(bk){
+      var bGrpKey = "B:" + bk;
+      var bCollapsed = !!collapsedGroups[bGrpKey];
+      html += '<div class="bld-group">' +
+        '<div class="bld-group-header' + (bCollapsed ? " collapsed" : "") + '" data-grp="' + escapeHtml(bGrpKey) + '">' +
+          '<span>' + escapeHtml(bk) + '</span>' +
+          '<span class="grp-arrow">▼</span>' +
+        '</div>' +
+        '<div class="bld-group-body' + (bCollapsed ? " collapsed" : "") + '" data-body="' + escapeHtml(bGrpKey) + '">';
+
+      var bld = bldMap[bk];
+      bld.floorOrder.forEach(function(fk){
+        var fGrpKey = "F:" + bk + "|||" + fk;
+        var fCollapsed = !!collapsedGroups[fGrpKey];
+        html += '<div class="floor-group">' +
+          '<div class="floor-group-header' + (fCollapsed ? " collapsed" : "") + '" data-grp="' + escapeHtml(fGrpKey) + '">' +
+            '<span>Floor ' + escapeHtml(fk) + '</span>' +
+            '<span class="grp-arrow">▼</span>' +
+          '</div>' +
+          '<div class="floor-group-body' + (fCollapsed ? " collapsed" : "") + '" data-body="' + escapeHtml(fGrpKey) + '">' +
+          '<table><thead><tr><th>Suite</th><th>Company</th><th></th></tr></thead><tbody>';
+
+        bld.floorMap[fk].forEach(function(r){
+          var extra = "";
+          if (r.sf){
+            extra += '<div class="hint" style="margin-top:2px;">SF: ' + escapeHtml(r.sf) + '</div>';
+          }
+          if (r.notes){
+            var notePreview = r.notes.length > 60 ? r.notes.slice(0, 60) + "…" : r.notes;
+            extra += '<div class="hint" style="margin-top:2px;">Note: ' + escapeHtml(notePreview) + '</div>';
+          }
+          html += '<tr>' +
+            '<td class="suite">' + escapeHtml(r.suite || "—") + '</td>' +
+            '<td class="company">' + escapeHtml(r.company || "—") + extra + '</td>' +
+            '<td class="actions">' +
+              '<button class="row-btn edit" data-id="' + r.id + '" title="Edit row">✎</button>' +
+              '<button class="row-btn del" data-id="' + r.id + '" title="Delete row">✕</button>' +
+            '</td>' +
+            '</tr>';
+
+          if (editingRowId === r.id){
+            html += '<tr class="full-edit-row"><td colspan="3">' +
+              '<div class="full-edit-wrap">' +
+                '<label>Building</label>' +
+                '<input type="text" class="edit-building" data-id="' + r.id + '" value="' + escapeHtml(r.building || "") + '">' +
+                '<label>Floor</label>' +
+                '<input type="text" class="edit-floor" data-id="' + r.id + '" value="' + escapeHtml(r.floor || "") + '">' +
+                '<label>Suite</label>' +
+                '<input type="text" class="edit-suite" data-id="' + r.id + '" value="' + escapeHtml(r.suite || "") + '">' +
+                '<label>Company</label>' +
+                '<textarea class="edit-company" data-id="' + r.id + '">' + escapeHtml(r.company || "") + '</textarea>' +
+                '<label>Square footage</label>' +
+                '<input type="text" class="edit-sf" data-id="' + r.id + '" value="' + escapeHtml(r.sf || "") + '">' +
+                '<label>Notes</label>' +
+                '<textarea class="notes-edit edit-notes" data-id="' + r.id + '">' + escapeHtml(r.notes || "") + '</textarea>' +
+                '<div class="btn-row">' +
+                  '<button class="btn btn-save btn-sm row-edit-save" data-id="' + r.id + '">Save Changes</button>' +
+                  '<button class="btn btn-ghost btn-sm note-cancel">Cancel</button>' +
+                '</div>' +
+              '</div>' +
+              '</td></tr>';
+          }
+        });
+
+        html += '</tbody></table></div></div>'; // floor-group-body, floor-group
+      });
+
+      html += '</div></div>'; // bld-group-body, bld-group
+    });
+
     rowsWrap.innerHTML = html;
+
+    // Group collapse/expand toggling
+    rowsWrap.querySelectorAll(".bld-group-header, .floor-group-header").forEach(function(hdr){
+      hdr.addEventListener("click", function(){
+        var key = hdr.getAttribute("data-grp");
+        collapsedGroups[key] = !collapsedGroups[key];
+        hdr.classList.toggle("collapsed", !!collapsedGroups[key]);
+        var body = rowsWrap.querySelector('[data-body="' + CSS.escape(key) + '"]');
+        if (body) body.classList.toggle("collapsed", !!collapsedGroups[key]);
+      });
+    });
 
     rowsWrap.querySelectorAll(".row-btn.del").forEach(function(btn){
       btn.addEventListener("click", function(){
@@ -2105,21 +2359,27 @@
       });
     });
 
-    rowsWrap.querySelectorAll(".note-save").forEach(function(btn){
+    rowsWrap.querySelectorAll(".row-edit-save").forEach(function(btn){
       btn.addEventListener("click", function(){
         var id = btn.getAttribute("data-id");
-        var ta = rowsWrap.querySelector('.notes-edit[data-id="' + id + '"]');
-        var newNote = ta ? ta.value.trim() : "";
+        var wrap = btn.closest(".full-edit-wrap");
+        var get = function(cls){ var el = wrap.querySelector("." + cls); return el ? el.value.trim() : ""; };
         var rows2 = getRows();
         for (var i = 0; i < rows2.length; i++){
           if (rows2[i].id === id){
-            rows2[i].notes = newNote;
+            rows2[i].building = get("edit-building") || rows2[i].building;
+            rows2[i].floor    = get("edit-floor")    || rows2[i].floor;
+            rows2[i].suite    = get("edit-suite");
+            rows2[i].company  = get("edit-company");
+            rows2[i].sf       = get("edit-sf");
+            rows2[i].notes    = get("edit-notes");
             break;
           }
         }
         saveRows(rows2);
         editingRowId = null;
         renderRows();
+        updateStatusBar();
       });
     });
   }
@@ -2152,7 +2412,10 @@
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    var stamp = new Date().toISOString().slice(0, 10);
+    var now = new Date();
+    var pad = function(n){ return String(n).padStart(2, "0"); };
+    var stamp = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate()) +
+      "-" + pad(now.getHours()) + pad(now.getMinutes());
     a.download = "building-survey-" + stamp + ".csv";
     document.body.appendChild(a);
     a.click();
