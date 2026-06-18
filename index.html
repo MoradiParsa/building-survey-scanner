@@ -373,7 +373,6 @@
     white-space:nowrap;
     cursor:pointer;
   }
-  .btn-compact.floor-down{ border-color:var(--safety); color:var(--safety-dark); }
   .btn-compact:active{ background:var(--paper); }
 
   /* instant building search suggestions */
@@ -549,6 +548,39 @@
   .reminder .rem-export{ background:var(--safety); color:#fff; }
   .reminder .rem-dismiss{ background:#3a3f44; color:#fff; }
 
+  /* ── Floor detection confirmation strip ── */
+  .floor-detect-strip{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:#eef2ee;
+    border:1px solid var(--go);
+    border-radius:10px;
+    padding:8px 12px;
+    margin:8px 0 4px;
+  }
+  .floor-detect-strip.hidden{ display:none; }
+  .floor-detect-label{
+    font-size:0.76rem;
+    font-weight:700;
+    color:var(--go-dark);
+    white-space:nowrap;
+  }
+  .floor-detect-input{
+    flex:1;
+    min-width:0;
+    font-size:1rem;
+    font-weight:700;
+    padding:6px 10px;
+    border:2px solid var(--go);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    font-family:var(--mono);
+    -webkit-appearance:none;
+  }
+  .floor-detect-input:focus{ outline:none; border-color:var(--go-dark); }
+
   /* ── Saved rows: building/floor folder groups ── */
   .bld-group{ margin-bottom:10px; }
   .bld-group-header{
@@ -693,13 +725,10 @@
       <input type="text" id="building" placeholder="e.g. 5601 or Granite" autocomplete="off">
       <div class="bld-suggestions" id="bldSuggestions"></div>
     </div>
-    <div class="job-row">
-      <div class="job-field">
+    <div class="job-field">
         <label for="floor">Floor</label>
         <input type="text" id="floor" placeholder="e.g. 4 or 4th" autocomplete="off">
       </div>
-      <button type="button" class="btn-compact floor-down" id="nextFloorDownBtn">▼ Floor<br>Down</button>
-    </div>
   </section>
 
   <section id="entrySection">
@@ -725,6 +754,10 @@
     <div id="singleEntryFields" class="hidden">
       <label for="suite">Suite number</label>
       <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
+      <div class="floor-detect-strip hidden" id="manualFloorStrip">
+        <span class="floor-detect-label">Detected floor:</span>
+        <input type="text" class="floor-detect-input" id="manualFloorInput" placeholder="—">
+      </div>
 
       <label for="company">Company name</label>
       <button type="button" class="quick-vacant-btn" id="qVacant">📭 VACANT</button>
@@ -741,6 +774,7 @@
         <button type="button" class="sf-pct-btn" data-pct="70">70%</button>
         <button type="button" class="sf-pct-btn" data-pct="80">80%</button>
         <button type="button" class="sf-pct-btn" data-pct="90">90%</button>
+        <button type="button" class="sf-pct-btn" data-pct="100">100%</button>
       </div>
       <input type="text" id="sf" placeholder="e.g. 1,200 or 30%" autocomplete="off">
 
@@ -763,6 +797,10 @@
     <div id="batchReviewPanel" class="hidden">
       <div class="batch-intro">Found <span id="batchCount">0</span> entries below (duplicates removed) — review or edit each one, then Save All.</div>
       <div id="batchListWrap"></div>
+      <div class="floor-detect-strip" id="batchFloorStrip">
+        <span class="floor-detect-label">Floor for this batch:</span>
+        <input type="text" class="floor-detect-input" id="batchFloorInput" placeholder="e.g. 7">
+      </div>
       <button class="btn btn-save btn-biggest" id="saveAllBtn">✔ SAVE ALL (<span id="batchSaveCount">0</span>)</button>
       <button class="btn btn-stop btn-sm" id="discardBatchBtn">Discard Batch</button>
     </div>
@@ -997,7 +1035,6 @@
   var bldSuggestions = $("bldSuggestions");
   var markCompleteBtn = $("markCompleteBtn");
   var floorInput = $("floor");
-  var nextFloorDownBtn = $("nextFloorDownBtn");
   var appleOcrPaste = $("appleOcrPaste");
   var parsePasteBtn = $("parsePasteBtn");
   var pasteClipboardBtn = $("pasteClipboardBtn");
@@ -1042,6 +1079,10 @@
   var reminderExportBtn = $("reminderExportBtn");
   var reminderDismissBtn = $("reminderDismissBtn");
   var qVacant = $("qVacant");
+  var manualFloorStrip = $("manualFloorStrip");
+  var manualFloorInput = $("manualFloorInput");
+  var batchFloorStrip = $("batchFloorStrip");
+  var batchFloorInput = $("batchFloorInput");
 
   var editingRowId = null;
   var currentBuildingAddress = ""; // full address, kept in sync with the Building field, used for status-sync matching
@@ -1277,70 +1318,6 @@
     closeEntryPanel();
   });
 
-  // ---------- floor down ----------
-
-  function ordinalSuffix(n){
-    n = Math.abs(n);
-    var rem100 = n % 100;
-    if (rem100 >= 11 && rem100 <= 13) return "th";
-    switch (n % 10){
-      case 1: return "st";
-      case 2: return "nd";
-      case 3: return "rd";
-      default: return "th";
-    }
-  }
-
-  function decrementFloor(value){
-    value = (value || "").trim();
-    if (!value) return null;
-
-    var bMatch = value.match(/^B\s*-?(\d+)$/i);
-    if (bMatch){
-      var bn = parseInt(bMatch[1], 10) + 1;
-      return "B" + bn;
-    }
-
-    if (/^(ground|g|lobby)$/i.test(value)){
-      return "B1";
-    }
-
-    var m = value.match(/^(-?\d+)\s*(st|nd|rd|th)?\b(.*)$/i);
-    if (m){
-      var num = parseInt(m[1], 10);
-      var hadOrdinal = !!m[2];
-      var rest = m[3] || "";
-      var newNum = num - 1;
-
-      if (newNum === 0){
-        return "Ground" + rest;
-      }
-      if (newNum < 0){
-        return "B" + Math.abs(newNum) + rest;
-      }
-      var suffix = hadOrdinal ? ordinalSuffix(newNum) : "";
-      return newNum + suffix + rest;
-    }
-
-    return null;
-  }
-
-  nextFloorDownBtn.addEventListener("click", function(){
-    var current = floorInput.value;
-    if (!current.trim()){
-      alert("Enter the current floor first.");
-      return;
-    }
-    var next = decrementFloor(current);
-    if (next === null){
-      alert('Couldn\'t automatically step down from "' + current + '". Edit the Floor field manually.');
-      return;
-    }
-    floorInput.value = next;
-    localStorage.setItem(FLOOR_KEY, next);
-    updateStatusBar();
-  });
-
   // ---------- status UI (OCR progress) ----------
 
   function showStatus(msg, pct){
@@ -1479,12 +1456,27 @@
       batchListWrap.innerHTML = '<div class="empty">No entries.</div>';
       return;
     }
+
+    // Build the SF % buttons HTML (shared snippet)
+    var sfPctHtml = '<div class="sf-pct-row">';
+    [10,20,30,40,50,60,70,80,90,100].forEach(function(p){
+      sfPctHtml += '<button type="button" class="sf-pct-btn batch-sf-pct" data-pct="' + p + '">' + p + '%</button>';
+    });
+    sfPctHtml += '</div>';
+
+    // Build the notes chips HTML (shared snippet)
+    var notesChipHtml = '<div class="notes-chips-row">';
+    ["Remodeled","Needs Update","Old","Good Condition"].forEach(function(n){
+      notesChipHtml += '<button type="button" class="notes-chip batch-notes-chip" data-note="' + escapeHtml(n) + '">' + escapeHtml(n) + '</button>';
+    });
+    notesChipHtml += '</div>';
+
     var html = "";
     batchEntries.forEach(function(entry, idx){
       var empty = !entry.suite.trim() && !entry.company.trim();
       html += '<div class="batch-entry">' +
         '<div class="batch-entry-header">' +
-          "<span>Photo " + (idx + 1) + "</span>" +
+          "<span>Entry " + (idx + 1) + "</span>" +
           '<button type="button" class="batch-delete-btn" data-idx="' + idx + '">🗑 Delete</button>' +
         "</div>" +
         (empty ? '<div class="batch-entry-warn">⚠ Couldn\'t find a suite or company here — edit below, or delete this entry.</div>' : "") +
@@ -1493,8 +1485,10 @@
         '<label>Company name</label>' +
         '<textarea class="batch-company" data-idx="' + idx + '" placeholder="e.g. Acme Logistics, LLC">' + escapeHtml(entry.company) + "</textarea>" +
         '<label>Square footage (optional)</label>' +
-        '<input type="text" class="batch-sf" data-idx="' + idx + '" value="' + escapeHtml(entry.sf) + '" placeholder="e.g. 1,200">' +
+        sfPctHtml +
+        '<input type="text" class="batch-sf" data-idx="' + idx + '" value="' + escapeHtml(entry.sf) + '" placeholder="e.g. 1,200 or 30%">' +
         '<label>Notes (optional)</label>' +
+        notesChipHtml +
         '<textarea class="batch-notes" data-idx="' + idx + '" placeholder="Any remarks">' + escapeHtml(entry.notes) + "</textarea>" +
       "</div>";
     });
@@ -1502,8 +1496,11 @@
 
     batchListWrap.querySelectorAll(".batch-suite").forEach(function(el){
       el.addEventListener("input", function(){
-        batchEntries[+el.getAttribute("data-idx")].suite = el.value;
+        var idx = +el.getAttribute("data-idx");
+        batchEntries[idx].suite = el.value;
         updateBatchCounts();
+        // Auto-detect floor from suite and update batch floor strip
+        updateBatchFloorFromEntries();
       });
     });
     batchListWrap.querySelectorAll(".batch-company").forEach(function(el){
@@ -1522,6 +1519,39 @@
         batchEntries[+el.getAttribute("data-idx")].notes = el.value;
       });
     });
+
+    // SF % quick buttons for batch entries
+    batchListWrap.querySelectorAll(".batch-sf-pct").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var pct = btn.getAttribute("data-pct");
+        // Find the nearest batch-sf input inside the same batch-entry div
+        var entry = btn.closest(".batch-entry");
+        var sfEl = entry ? entry.querySelector(".batch-sf") : null;
+        if (!sfEl) return;
+        var idx = +sfEl.getAttribute("data-idx");
+        sfEl.value = pct + "%";
+        batchEntries[idx].sf = sfEl.value;
+        // Move focus to the notes textarea in the same entry
+        var notesEl = entry.querySelector(".batch-notes");
+        if (notesEl) notesEl.focus();
+      });
+    });
+
+    // Notes chips for batch entries
+    batchListWrap.querySelectorAll(".batch-notes-chip").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var note = btn.getAttribute("data-note");
+        var entry = btn.closest(".batch-entry");
+        var notesEl = entry ? entry.querySelector(".batch-notes") : null;
+        if (!notesEl) return;
+        var idx = +notesEl.getAttribute("data-idx");
+        var cur = batchEntries[idx].notes.trim();
+        batchEntries[idx].notes = cur ? cur + ", " + note : note;
+        notesEl.value = batchEntries[idx].notes;
+        notesEl.focus();
+      });
+    });
+
     batchListWrap.querySelectorAll(".batch-delete-btn").forEach(function(btn){
       btn.addEventListener("click", function(){
         var idx = +btn.getAttribute("data-idx");
@@ -1532,6 +1562,7 @@
         }
         renderBatchList();
         updateBatchCounts();
+        updateBatchFloorFromEntries();
       });
     });
   }
@@ -1732,8 +1763,14 @@
     setClipboardStatus("✓ Found " + batchEntries.length + " entr" + (batchEntries.length === 1 ? "y" : "ies") + " — review below", "success", true);
     singleEntryFields.classList.add("hidden");
     batchReviewPanel.classList.remove("hidden");
+    // Seed the batch floor strip from auto-detection (blank it first so
+    // updateBatchFloorFromEntries will fill it)
+    batchFloorInput.value = floorInput.value.trim();
     renderBatchList();
     updateBatchCounts();
+    if (!batchFloorInput.value.trim()){
+      updateBatchFloorFromEntries();
+    }
   }
 
   function exitBatchMode(){
@@ -1741,6 +1778,7 @@
     batchEntries = [];
     batchReviewPanel.classList.add("hidden");
     singleEntryFields.classList.remove("hidden");
+    batchFloorInput.value = "";
   }
 
   // Single entry point for "we now have some text — import and parse it,"
@@ -1953,21 +1991,73 @@
   });
 
   // ---------- auto-floor detection from suite number ----------
+
   function detectFloorFromSuite(suiteVal){
-    var s = suiteVal.trim().replace(/\D/g, ""); // digits only
+    var s = (suiteVal || "").trim().replace(/\D/g, ""); // digits only
     if (s.length === 3) return s[0];
     if (s.length === 4) return s.slice(0, 2);
     return null;
   }
 
+  // Update the manual-entry floor strip whenever the suite field changes
+  suiteInput.addEventListener("input", function(){
+    var detected = detectFloorFromSuite(suiteInput.value);
+    if (detected){
+      manualFloorStrip.classList.remove("hidden");
+      // Pre-fill only if the input is blank; don't override what the user typed
+      if (!manualFloorInput.value.trim()){
+        manualFloorInput.value = detected;
+      }
+    } else {
+      manualFloorStrip.classList.add("hidden");
+    }
+  });
+
+  // Also keep the main Floor field in sync when the user leaves the suite field
   suiteInput.addEventListener("blur", function(){
     var detected = detectFloorFromSuite(suiteInput.value);
     if (!detected) return;
-    var cur = floorInput.value.trim();
-    // Only auto-fill if floor is blank
-    if (!cur){
-      floorInput.value = detected;
-      localStorage.setItem(FLOOR_KEY, detected);
+    // Only auto-fill the main floor field if it is blank
+    if (!floorInput.value.trim()){
+      var stripped = manualFloorInput.value.trim() || detected;
+      floorInput.value = stripped;
+      localStorage.setItem(FLOOR_KEY, stripped);
+      updateStatusBar();
+    }
+  });
+
+  // When user edits the manual floor strip, propagate to main floor field
+  manualFloorInput.addEventListener("input", function(){
+    var v = manualFloorInput.value.trim();
+    if (v){
+      floorInput.value = v;
+      localStorage.setItem(FLOOR_KEY, v);
+      updateStatusBar();
+    }
+  });
+
+  // Detect the most common floor across batch entries and populate batchFloorInput
+  function updateBatchFloorFromEntries(){
+    var counts = {};
+    batchEntries.forEach(function(e){
+      var f = detectFloorFromSuite(e.suite);
+      if (f) counts[f] = (counts[f] || 0) + 1;
+    });
+    var best = null, bestCount = 0;
+    Object.keys(counts).forEach(function(f){
+      if (counts[f] > bestCount){ best = f; bestCount = counts[f]; }
+    });
+    if (best && !batchFloorInput.value.trim()){
+      batchFloorInput.value = best;
+    }
+  }
+
+  // When the user edits batchFloorInput, also update the main floor field
+  batchFloorInput.addEventListener("input", function(){
+    var v = batchFloorInput.value.trim();
+    if (v){
+      floorInput.value = v;
+      localStorage.setItem(FLOOR_KEY, v);
       updateStatusBar();
     }
   });
@@ -2300,6 +2390,8 @@
     sfInput.value = "";
     rawText.value = "";
     rawText.placeholder = RAW_PLACEHOLDER;
+    manualFloorStrip.classList.add("hidden");
+    manualFloorInput.value = "";
     hideParseHint();
     clearDraft();
   }
@@ -2308,19 +2400,28 @@
   // or the user canceled an overwrite confirmation.
   function performSave(){
     var building = buildingInput.value.trim();
-    var floor = floorInput.value.trim();
+    // Use the confirmed floor from the manual strip if it's visible and filled
+    var manualStripFloor = (!manualFloorStrip.classList.contains("hidden") && manualFloorInput.value.trim())
+      ? manualFloorInput.value.trim() : "";
+    var floor = manualStripFloor || floorInput.value.trim();
     var suite = suiteInput.value.trim();
     var company = companyInput.value.trim();
     var sf = sfInput.value.trim();
     var notes = notesInput.value.trim();
 
     if (!building || !floor){
-      alert("Enter the Building address and Floor at the top before saving.");
+      alert("Enter the Building address and Floor before saving.");
       return false;
     }
     if (!suite && !company){
       alert("Enter at least a Suite number or a Company name before saving.");
       return false;
+    }
+    // Keep main floor field in sync
+    if (floor !== floorInput.value.trim()){
+      floorInput.value = floor;
+      localStorage.setItem(FLOOR_KEY, floor);
+      updateStatusBar();
     }
 
     var rows = getRows();
@@ -2407,14 +2508,21 @@
 
   function performBatchSaveAll(){
     var building = buildingInput.value.trim();
-    var floor = floorInput.value.trim();
+    // Floor comes from the batch strip first, then the main floor field
+    var floor = batchFloorInput.value.trim() || floorInput.value.trim();
     if (!building || !floor){
-      alert("Enter the Building address and Floor at the top before saving.");
+      alert("Enter the Building address and Floor before saving. Use the floor field in the review area below.");
       return;
     }
     if (!batchEntries.length){
       alert("No entries to save.");
       return;
+    }
+    // Keep main floor field in sync
+    if (floor !== floorInput.value.trim()){
+      floorInput.value = floor;
+      localStorage.setItem(FLOOR_KEY, floor);
+      updateStatusBar();
     }
 
     var rows = getRows();
