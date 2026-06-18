@@ -1549,90 +1549,136 @@
     return false;
   }
 
-  // A line counts as a suite line when, after stripping label words like
-  // "Suite"/"Ste", it has at least one digit and at least as many digit
-  // characters as letter characters — e.g. "100" or "Suite 4B", but not a
-  // company name that happens to contain a number like "3M Company".
-  // Scans a block of text word-by-word (not just whole-line) so a suite
-  // number embedded anywhere in a line — at the start, the end, or mixed in
-  // with company text like "SUMMIT PARTNERS 200" — is correctly split off
-  // and paired with its company, producing every suite/company pair found
-  // instead of stopping at the first one.
+  // Returns true when a line is purely a suite number:
+  //   - Optional leading label word (Suite / Ste / Room / #) stripped first.
+  //   - Remaining text is 3–5 digits, optionally followed by a single letter (100A).
+  //   - Lines that are all-text (company names) are NOT matched, even if they
+  //     contain a number like "3M" or "Floor 2 Lobby".
+  function isSuiteLine(line){
+    var t = line.trim().replace(LABEL_WORD_REGEX, "").replace(/\s+/g, " ").trim();
+    return /^\d{3,5}[A-Za-z]?$/.test(t);
+  }
+
+  // Extract the bare suite number from a line already confirmed as a suite line.
+  function extractSuiteNum(line){
+    return line.trim().replace(LABEL_WORD_REGEX, "").replace(/\s+/g, " ").trim();
+  }
+
+  // Parse one OCR block (between PHOTO separators, or the whole paste if no
+  // separators) into suite/company pairs.
+  //
+  // Handles both layouts:
+  //
+  //   Layout A — suite number first:
+  //     750
+  //     Texas Outdoor Home Services
+  //     → { suite:"750", company:"Texas Outdoor Home Services" }
+  //
+  //   Layout B — company name first:
+  //     Texas Outdoor
+  //     Home Services
+  //     750
+  //     → { suite:"750", company:"Texas Outdoor Home Services" }
+  //
+  // Strategy: classify every non-junk line as either SUITE or TEXT, then
+  // walk the resulting token list.  Multi-line company names are joined with
+  // a space.  A TEXT run that precedes a SUITE token belongs to that suite
+  // (Layout B).  A TEXT run that follows a SUITE token belongs to that suite
+  // (Layout A).  Consecutive TEXT lines before any SUITE, or at the very end
+  // with no following SUITE, surface as an entry with a blank suite number so
+  // the user can edit them in the review screen.
   function parseBlockIntoPairs(blockText){
-    var lines = (blockText || "").split("\n").map(function(l){ return l.trim(); });
-    var pairs = [];
-    var pendingSuite = null;          // a suite number still waiting for its company words
-    var pendingSuiteWords = [];       // company words collected so far for pendingSuite
-    var pendingCompanies = [];        // whole company chunks seen with no suite waiting yet
-
-    function isLabelWord(word){
-      var t = word.replace(/[.,:#]+$/, "");
-      LABEL_WORD_REGEX.lastIndex = 0;
-      var m = LABEL_WORD_REGEX.test(t);
-      LABEL_WORD_REGEX.lastIndex = 0;
-      return m && t.replace(LABEL_WORD_REGEX, "").trim() === "";
-    }
-
-    function flushPendingSuite(){
-      if (pendingSuite !== null){
-        pairs.push({ suite: pendingSuite, company: pendingSuiteWords.join(" ").trim() });
-        pendingSuite = null;
-        pendingSuiteWords = [];
-      }
-    }
-
-    function startNewSuite(suiteNum){
-      flushPendingSuite();
-      if (pendingCompanies.length){
-        // a company chunk was already waiting (showed up before any number
-        // claimed it) — this number claims the oldest one
-        pairs.push({ suite: suiteNum, company: pendingCompanies.shift() });
-      } else {
-        pendingSuite = suiteNum;
-        pendingSuiteWords = [];
-      }
-    }
-
-    lines.forEach(function(line){
+    // Step 1 — tokenise: each non-junk line becomes {type:"suite"|"text", value}
+    var tokens = [];
+    (blockText || "").split("\n").forEach(function(raw){
+      var line = raw.trim();
       if (isJunkLine(line)) return;
+      if (isSuiteLine(line)){
+        tokens.push({ type: "suite", value: extractSuiteNum(line) });
+      } else {
+        tokens.push({ type: "text", value: line });
+      }
+    });
 
-      var words = line.split(/\s+/).filter(function(w){ return w.length > 0; });
-      var lineHasSuiteDigit = false;
-      var lineCompanyWords = []; // words on this line with no suite pending yet
+    if (!tokens.length) return [];
 
-      words.forEach(function(word){
-        if (isLabelWord(word)) return; // skip bare label words like "Suite"/"Ste"
-        if (/^\d{1,5}$/.test(word)){
-          lineHasSuiteDigit = true;
-          startNewSuite(word);
-        } else if (pendingSuite !== null){
-          pendingSuiteWords.push(word);
+    // Step 2 — decide the dominant layout by looking at the first SUITE token:
+    //   • if the first SUITE comes after one or more TEXT tokens → Layout B
+    //   • otherwise → Layout A (suite first, or mixed)
+    var firstSuiteIdx = -1;
+    for (var i = 0; i < tokens.length; i++){
+      if (tokens[i].type === "suite"){ firstSuiteIdx = i; break; }
+    }
+
+    // No suite found at all — return all text as one company with blank suite
+    if (firstSuiteIdx === -1){
+      var allText = tokens.map(function(t){ return t.value; }).join(" ").trim();
+      return allText ? [{ suite: "", company: allText }] : [];
+    }
+
+    var layoutB = firstSuiteIdx > 0; // at least one TEXT line before the first SUITE
+
+    var pairs = [];
+
+    if (!layoutB){
+      // ── Layout A: SUITE → following TEXT lines belong to that suite ──────
+      // Walk tokens; each SUITE starts a new entry; TEXT lines after it
+      // append to the current entry's company.  Consecutive TEXT lines
+      // before the first SUITE (shouldn't happen in Layout A but be safe)
+      // are kept as a blank-suite entry.
+      var current = null;
+      var orphanText = [];
+
+      tokens.forEach(function(tok){
+        if (tok.type === "suite"){
+          if (current) pairs.push(current);
+          current = { suite: tok.value, company: "" };
         } else {
-          lineCompanyWords.push(word);
+          if (current){
+            current.company = (current.company + " " + tok.value).trim();
+          } else {
+            orphanText.push(tok.value);
+          }
+        }
+      });
+      if (current) pairs.push(current);
+      if (orphanText.length){
+        pairs.push({ suite: "", company: orphanText.join(" ").trim() });
+      }
+
+    } else {
+      // ── Layout B: TEXT lines → the SUITE that follows them claims them ──
+      // Walk tokens; accumulate TEXT lines into a buffer; when a SUITE is
+      // seen, flush the buffer as that suite's company.  Any TEXT lines that
+      // appear AFTER a suite but BEFORE the next suite also buffer normally
+      // so they can be claimed by the next suite.  Only text left at the very
+      // end (no following suite) is appended to the last pair.
+      var textBuf = [];
+      var lastPair = null;
+
+      tokens.forEach(function(tok){
+        if (tok.type === "text"){
+          textBuf.push(tok.value);
+        } else {
+          // SUITE token: the buffered text before this suite is its company
+          var company = textBuf.join(" ").trim();
+          textBuf = [];
+          lastPair = { suite: tok.value, company: company };
+          pairs.push(lastPair);
         }
       });
 
-      if (lineCompanyWords.length){
-        // If we have no pending suite but we're after a suite that was just
-        // flushed, try to append to the LAST pair instead (multi-line company).
-        // This only applies when the line has NO suite digit on it at all.
-        if (!lineHasSuiteDigit && pairs.length && pendingCompanies.length === 0){
-          // Continuation line — join onto last pair's company
-          pairs[pairs.length - 1].company =
-            (pairs[pairs.length - 1].company + " " + lineCompanyWords.join(" ")).trim();
+      // Any text left in the buffer had no following suite —
+      // append to the last suite's company (trailing continuation lines),
+      // or surface as a blank-suite entry if there was no suite at all.
+      if (textBuf.length){
+        if (lastPair){
+          lastPair.company = (lastPair.company + " " + textBuf.join(" ")).trim();
         } else {
-          pendingCompanies.push(lineCompanyWords.join(" "));
+          pairs.push({ suite: "", company: textBuf.join(" ").trim() });
         }
       }
-    });
-
-    // Nothing left unmatched disappears silently — it surfaces in the
-    // review list (blank suite or blank company) so it can be edited or
-    // deleted there instead.
-    flushPendingSuite();
-    pendingCompanies.forEach(function(c){
-      pairs.push({ suite: "", company: c });
-    });
+    }
 
     return pairs.filter(function(p){ return p.suite || p.company; });
   }
@@ -1643,25 +1689,37 @@
 
   // Single, unified entry point: returns the full array of every suite/
   // company pair found in the pasted text (PHOTO-separated or not),
-  // deduped. The caller decides what to do based on how many came back —
-  // it never stops after the first one.
+  // deduped on suite+company. The caller decides what to do based on how
+  // many came back — it never stops after the first one.
   function parseBulkOcrEntries(text){
     var sections = splitMultiPhotoText(text);
     var blocks = (sections && sections.length) ? sections : [text];
 
     var rawPairs = [];
     blocks.forEach(function(block){
-      parseBlockIntoPairs(block).forEach(function(p){ rawPairs.push(p); });
+      var lines = block.split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
+
+      // Priority 1: availability / for-lease sign
+      if (isAvailabilityBlock(lines)){
+        parseAvailabilityBlock(lines).forEach(function(p){ rawPairs.push(p); });
+        return;
+      }
+
+      // Priority 2 / 3: standard tenant plaque (single or multi-entry)
+      parseBlockIntoPairs(block).forEach(function(p){
+        rawPairs.push({ suite: p.suite, company: p.company, sf: "", notes: "" });
+      });
     });
 
+    // Dedup: only drop exact suite+company duplicates
     var seen = {};
     var entries = [];
     rawPairs.forEach(function(p){
       var company = normalizeCompanyVacancy(p.company);
       var key = pairDedupeKey(p.suite, company);
-      if (seen[key]) return; // exact suite + company duplicate — skip
+      if (seen[key]) return;
       seen[key] = true;
-      entries.push({ suite: p.suite, company: company, sf: "", notes: "", raw: company });
+      entries.push({ suite: p.suite, company: company, sf: p.sf || "", notes: p.notes || "", raw: company });
     });
     return entries;
   }
@@ -1914,43 +1972,277 @@
     }
   });
 
-  // ---------- text parsing (shared by Apple OCR Paste, Clipboard, and Web OCR) ----------
-  //
-  // Every line is kept, nothing is discarded:
-  //   - Any line containing at least one digit -> Suite Number (all such
-  //     lines/tokens are kept, joined together). Letters directly touching
-  //     digits (12A, PH1, A120, 1200B) are left completely intact.
-  //   - Only the standalone label words "Suite", "Ste", "Room" are stripped,
-  //     and only when they appear as separate words (not letter-glued to a
-  //     number) — e.g. "Suite 1200" -> "1200", but "Suite1200" is untouched.
-  //   - Any line with no digit at all -> Company Name, verbatim, one company
-  //     line per source line, joined with line breaks. Punctuation, commas,
-  //     ampersands, apostrophes, periods, hyphens, and capitalization are
-  //     never altered.
+  var LABEL_WORD_REGEX = /\b(suite|ste|ste\.|room|unit|#)\b\.?/gi;
 
-  var LABEL_WORD_REGEX = /\b(suite|ste|room)\b\.?/gi;
+  // ─────────────────────────────────────────────────────────────────────────
+  // AVAILABILITY / FOR LEASE SIGN PARSER
+  // Priority 1: if the block looks like a leasing sign, extract suite + SF
+  // and set company = AVAILABLE, notes = "For Lease".  All contact info,
+  // broker names, URLs, phone numbers, and marketing text is discarded.
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // Normalize vacancy synonyms in company names
-  var VACANCY_SYNONYMS = /^(available|for\s+lease|vacancy|vacant)$/i;
-  function normalizeCompanyVacancy(company){
-    var lines = company.split("\n").map(function(l){ return l.trim(); });
-    var normalized = lines.map(function(l){
-      return VACANCY_SYNONYMS.test(l) ? "VACANT" : l;
+  // Phrases that indicate this is a leasing / availability sign.
+  // Matched against the whole trimmed line.
+  var AVAIL_TRIGGER_LINE = /^(for\s+lease|available|office\s+(space\s+)?available|now\s+leasing|leasing|office\s+leasing|for\s+rent|suite\s+available)$/i;
+
+  // Lines that are clearly noise/junk inside an availability block
+  var AVAIL_NOISE_LINE = /(@|\.(com|net|org|io|co)\b)|(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4})|(https?:\/\/)|(www\.)|(qr\s*(code)?)|(scan\s+to)|(boxer\s+property)|(cbre|jll|cushman|colliers)/i;
+
+  // A block is a leasing sign when:
+  //   (a) At least one line is a standalone availability header, AND
+  //   (b) The "available" lines are NOT all directly paired as companies
+  //       to adjacent suite numbers (which would make them tenant-plaque entries).
+  function isAvailabilityBlock(lines){
+    // Quick check: is there any availability header line at all?
+    var hasHeader = lines.some(function(l){ return AVAIL_TRIGGER_LINE.test(l.trim()); });
+    if (!hasHeader) return false;
+
+    // Classify each line as suite / avail-header / noise / real-company
+    // Then check: if every avail-header line is immediately after a suite-number
+    // line, it's a plaque (Layout A with "Available" as the company name).
+    var classified = lines.map(function(l){
+      var t = l.trim();
+      if (!t || isJunkLine(t))       return "junk";
+      if (AVAIL_NOISE_LINE.test(t))  return "noise";
+      if (SF_PATTERN.test(t))        return "sf";
+      LABEL_WORD_REGEX.lastIndex = 0;
+      var stripped = t.replace(LABEL_WORD_REGEX, "").replace(/\s+/g, " ").trim();
+      if (/^\d{2,5}[A-Za-z]?$/.test(stripped)) return "suite";
+      if (/\b(?:suite|ste|unit)\s*\d{2,5}/i.test(t)) return "suite";
+      if (AVAIL_TRIGGER_LINE.test(t)) return "header";
+      return "company";
     });
-    return normalized.join("\n");
+
+    // If every "header" line is immediately preceded by a "suite" line,
+    // this is a plaque where "Available" is the company name — not a sign.
+    var allHeadersPairedWithSuite = true;
+    for (var i = 0; i < classified.length; i++){
+      if (classified[i] !== "header") continue;
+      var prevNonJunk = null;
+      for (var j = i - 1; j >= 0; j--){
+        if (classified[j] !== "junk" && classified[j] !== "noise"){
+          prevNonJunk = classified[j];
+          break;
+        }
+      }
+      if (prevNonJunk !== "suite"){ allHeadersPairedWithSuite = false; break; }
+    }
+    if (allHeadersPairedWithSuite) return false; // treat as plaque
+
+    // If there are real company-name lines (not noise, not suite, not header,
+    // not SF), this is a plaque too.
+    var hasRealCompany = classified.some(function(c){ return c === "company"; });
+    return !hasRealCompany;
   }
 
-  function parseRawText(text){
-    var raw = (text || "");
-    var lines = raw.split("\n")
-      .map(function(l){ return l.trim(); })
-      .filter(function(l){ return l.length > 0; });
+  // Lines to throw away inside an availability block
+  var AVAIL_JUNK = new RegExp(
+    "^(" +
+      "boxer\\s+property|" +                     // known broker brand
+      "\\+?1?[\\s.-]?\\(?\\d{3}\\)?[\\s.-]?\\d{3}[\\s.-]?\\d{4}|" + // phone
+      "[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}|" +               // email
+      "(https?://|www\\.)[^\\s]+|" +             // URL
+      "[a-z0-9][a-z0-9\\-]*\\.[a-z]{2,}(\\s|$)|" +                   // bare domain
+      "qr\\s*(code)?|scan\\s+to|" +              // QR instructions
+      "for\\s+more\\s+info|contact|inquire|" +   // marketing phrases
+      "broker|agent|realtor|" +
+      "copyright|©|\\bllp\\b|\\bcbre\\b|\\bjll\\b|\\bcushman\\b" +
+    ")", "i"
+  );
 
-    var suiteParts = [];
+  // Matches a square-footage token: "1,234 SF" / "1234sf" / "1,234 sq ft"
+  var SF_PATTERN = /(\d[\d,]*)\s*(sf|sq\.?\s*ft\.?)/i;
+
+  function parseAvailabilityBlock(lines){
+    var suite = "";
+    var sf    = "";
+
+    lines.forEach(function(line){
+      var t = line.trim();
+      if (!t) return;
+
+      // Suite extraction: "Suite 110", "SUITE 110", bare number 3-5 digits
+      if (!suite){
+        // "Suite NNN" explicit label
+        var sm = t.match(/\b(?:suite|ste|unit|#)\s*(\d{2,5}[A-Za-z]?)\b/i);
+        if (sm){ suite = sm[1]; return; }
+        // Bare suite number on its own line (and not obviously SF)
+        if (/^\d{2,5}[A-Za-z]?$/.test(t) && !SF_PATTERN.test(t)){
+          suite = t;
+          return;
+        }
+      }
+
+      // SF extraction
+      if (!sf){
+        var fm = t.match(SF_PATTERN);
+        if (fm){ sf = fm[1].replace(/,/g, ""); return; }
+      }
+
+      // Everything else: ignore (contact info, broker, QR, marketing)
+    });
+
+    return [{ suite: suite, company: "AVAILABLE", sf: sf, notes: "For Lease" }];
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SUITE-LINE CLASSIFIER
+  // A line is a suite line when — after stripping label words — what remains
+  // is 2–5 digits optionally followed by one letter.  Short numbers (1–2
+  // digits) are NOT suite numbers (could be floor references, "2nd", etc.).
+  // Company names that happen to contain numbers (3M, 7-Eleven) are excluded
+  // because they are not *only* digits.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function isSuiteLine(line){
+    var t = line.trim()
+      .replace(LABEL_WORD_REGEX, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return /^\d{2,5}[A-Za-z]?$/.test(t);
+  }
+
+  function extractSuiteNum(line){
+    return line.trim()
+      .replace(LABEL_WORD_REGEX, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TENANT PLAQUE PARSER  (Layout A, Layout B, and mixed)
+  //
+  // Converts a token list of {type:"suite"|"text", value} into pairs.
+  //
+  // Core insight: the layout (suite-first vs company-first) can ALTERNATE
+  // within a single OCR block.  Rather than picking one global layout, we
+  // walk the token list and decide each association locally:
+  //
+  //   • When we see a SUITE token:
+  //       – If there is already a text buffer waiting → that buffer is this
+  //         suite's company (Layout B association).
+  //       – Otherwise → open a new "current" entry and collect what follows
+  //         (Layout A association).
+  //
+  //   • When we see a TEXT token:
+  //       – If we have a current (Layout A) entry open → append to it.
+  //       – Otherwise → push onto the pending text buffer.
+  //
+  // This correctly handles:
+  //   A-only:  750 / Texas Outdoor / 748 / Expats IT
+  //   B-only:  Texas Outdoor / 750 / Expats IT / 748
+  //   Mixed:   750 / Texas Outdoor / Expats IT / 748
+  //            (750 gets "Texas Outdoor", 748 gets "Expats IT")
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function parseBlockIntoPairs(blockText){
+    // Tokenise: skip junk lines, classify each remaining line
+    var tokens = [];
+    (blockText || "").split("\n").forEach(function(raw){
+      var line = raw.trim();
+      if (isJunkLine(line)) return;
+      tokens.push(isSuiteLine(line)
+        ? { type: "suite", value: extractSuiteNum(line) }
+        : { type: "text",  value: line });
+    });
+
+    if (!tokens.length) return [];
+
+    // If no suite token exists at all, surface everything as one blank-suite entry
+    var hasSuite = tokens.some(function(t){ return t.type === "suite"; });
+    if (!hasSuite){
+      var allText = tokens.map(function(t){ return t.value; }).join(" ").trim();
+      return allText ? [{ suite: "", company: allText }] : [];
+    }
+
+    var pairs   = [];
+    var textBuf = [];    // text lines accumulated before next suite (Layout B buffer)
+    var current = null;  // open Layout A entry waiting for more text
+
+    function flushCurrent(){
+      if (current){ pairs.push(current); current = null; }
+    }
+
+    tokens.forEach(function(tok){
+      if (tok.type === "suite"){
+        if (textBuf.length){
+          // Layout B: buffered text belongs to this suite
+          flushCurrent();
+          pairs.push({ suite: tok.value, company: textBuf.join(" ").trim() });
+          textBuf = [];
+          current = null;
+        } else {
+          // Layout A: open a new entry; following text will fill its company
+          flushCurrent();
+          current = { suite: tok.value, company: "" };
+        }
+      } else {
+        // Text token
+        if (current){
+          // We are inside a Layout A entry — append
+          current.company = (current.company + " " + tok.value).trim();
+        } else {
+          // No open entry yet — buffer for a possible upcoming Layout B suite
+          textBuf.push(tok.value);
+        }
+      }
+    });
+
+    // Flush anything still open
+    flushCurrent();
+    // Any remaining buffered text had no following suite → blank-suite entry
+    if (textBuf.length){
+      pairs.push({ suite: "", company: textBuf.join(" ").trim() });
+    }
+
+    return pairs.filter(function(p){ return p.suite || p.company; });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // VACANCY SYNONYM NORMALISATION
+  // Applied after pairing so "Available", "For Lease", "Vacancy" in a tenant
+  // plaque slot become the canonical "VACANT".
+  // ─────────────────────────────────────────────────────────────────────────
+
+  var VACANCY_SYNONYMS = /^(available|for\s+lease|vacancy|vacant)$/i;
+
+  function normalizeCompanyVacancy(company){
+    // If the whole company string is a vacancy phrase, normalise it
+    if (VACANCY_SYNONYMS.test(company.trim())) return "VACANT";
+    return company;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // parseRawText — used by the single-entry Web OCR path only.
+  // Also runs the availability check so a leasing sign photographed via
+  // Web OCR gets the same treatment as a pasted one.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function parseRawText(text){
+    var raw   = (text || "");
+    var lines = raw.split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
+
+    // Availability / For Lease sign takes priority
+    if (isAvailabilityBlock(lines)){
+      var avPairs = parseAvailabilityBlock(lines);
+      return {
+        suite:   avPairs[0].suite,
+        company: avPairs[0].company,
+        sf:      avPairs[0].sf,
+        notes:   avPairs[0].notes,
+        raw:     raw.trim()
+      };
+    }
+
+    // Standard tenant plaque fallback (original single-entry logic)
+    var suiteParts   = [];
     var companyLines = [];
 
     lines.forEach(function(line){
-      if (/\d/.test(line)){
+      if (isSuiteLine(line)){
+        suiteParts.push(extractSuiteNum(line));
+      } else if (/\d/.test(line)){
+        // Line has digits but isn't a bare suite number — keep as suite context
         var cleaned = line.replace(LABEL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
         if (cleaned) suiteParts.push(cleaned);
       } else {
@@ -1959,10 +2251,23 @@
     });
 
     return {
-      suite: suiteParts.join(", "),
+      suite:   suiteParts.join(", "),
       company: normalizeCompanyVacancy(companyLines.join("\n")),
-      raw: raw.trim()
+      sf:      "",
+      notes:   "",
+      raw:     raw.trim()
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DEDUP KEY — only exact Building+Floor+Suite+Company matches are removed.
+  // (Building and Floor are not known at parse time; they are added at save
+  //  time.  Here we key only on suite+company so that multiple AVAILABLE
+  //  suites in the same paste are all kept.)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function pairDedupeKey(suite, company){
+    return suite.trim().toLowerCase() + "||" + company.trim().toLowerCase().replace(/\s+/g, " ");
   }
 
   // ---------- entry panel reset ----------
