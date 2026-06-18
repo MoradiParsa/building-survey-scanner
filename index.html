@@ -196,7 +196,6 @@
   .btn-sm{ min-height:42px; font-size:0.82rem; }
 
   .hidden{ display:none; }
-  #entrySection.hidden{ display:none; }
 
   .batch-intro{
     font-size:0.84rem;
@@ -245,28 +244,6 @@
   }
   .batch-entry label{ margin-top:8px; }
   .batch-entry label:first-of-type{ margin-top:0; }
-
-  .panel-header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    margin-bottom:8px;
-  }
-  .panel-header h2{ margin:0; }
-  .panel-close-btn{
-    flex:0 0 auto;
-    font-size:0.78rem;
-    font-weight:700;
-    color:var(--ink);
-    background:#fff;
-    border:2px solid var(--line);
-    border-radius:8px;
-    padding:7px 12px;
-    cursor:pointer;
-    -webkit-appearance:none;
-  }
-  .panel-close-btn:active{ background:var(--paper); }
 
   .btn-primary{ background:var(--safety); }
   .btn-primary:active{ background:var(--safety-dark); }
@@ -627,23 +604,13 @@
       </div>
       <button type="button" class="btn-compact floor-down" id="nextFloorDownBtn">▼ Floor<br>Down</button>
     </div>
-    <button class="btn btn-ghost btn-sm" id="markCompleteBtn" style="margin-top:10px;">✔ Mark Building Complete</button>
   </section>
 
-  <button class="btn btn-primary btn-biggest" id="openEntryPanelBtn">📋 PASTE / SCAN BUILDING DATA</button>
-
-  <section id="entrySection" class="hidden">
-    <div class="panel-header">
-      <h2>Add an Entry</h2>
-      <button type="button" class="panel-close-btn" id="closeEntryPanelBtn">✕ Close</button>
-    </div>
-
-    <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then tap the box below and paste.</div>
-
+  <section id="entrySection">
     <div class="clipboard-status" id="clipboardStatus"></div>
 
-    <label for="appleOcrPaste">Tap here and paste Apple OCR text</label>
-    <textarea id="appleOcrPaste" class="paste-box" placeholder="Tap here, then tap Paste when iPhone shows it."></textarea>
+    <label for="appleOcrPaste">Paste OCR text here</label>
+    <textarea id="appleOcrPaste" class="paste-box" placeholder="Paste OCR text here"></textarea>
 
     <div class="paste-fallback-row">
       <button type="button" id="parsePasteBtn">Parse Text</button>
@@ -659,7 +626,7 @@
       <button type="button" class="btn btn-save btn-biggest" id="parseFullTextBtn">Parse Full Text</button>
     </details>
 
-    <div id="singleEntryFields">
+    <div id="singleEntryFields" class="hidden">
       <label for="suite">Suite number</label>
       <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
 
@@ -722,6 +689,8 @@
       </div>
     </details>
   </section>
+
+  <button class="btn btn-ghost btn-sm" id="markCompleteBtn" style="margin:14px 0;">✔ Mark Building Complete</button>
 
   <section>
     <h2>Saved Rows <span class="count-pill" id="rowCount">0</span></h2>
@@ -924,8 +893,6 @@
   var parseFullTextBtn = $("parseFullTextBtn");
   var clipboardStatus = $("clipboardStatus");
   var entrySection = $("entrySection");
-  var openEntryPanelBtn = $("openEntryPanelBtn");
-  var closeEntryPanelBtn = $("closeEntryPanelBtn");
   var singleEntryFields = $("singleEntryFields");
   var batchReviewPanel = $("batchReviewPanel");
   var batchListWrap = $("batchListWrap");
@@ -1052,6 +1019,9 @@
     if (draft.hintShown){
       parseHint.textContent = draft.hintText || "";
       parseHint.classList.add("show");
+    }
+    if (draft.suite || draft.company || draft.sf || draft.notes){
+      singleEntryFields.classList.remove("hidden");
     }
   }
 
@@ -1293,6 +1263,8 @@
   }
 
   function applyParsedToFields(parsed){
+    batchReviewPanel.classList.add("hidden");
+    singleEntryFields.classList.remove("hidden");
     rawText.value = parsed.raw;
     suiteInput.value = parsed.suite;
     companyInput.value = parsed.company;
@@ -1310,6 +1282,8 @@
   }
 
   function startManualEntry(){
+    batchReviewPanel.classList.add("hidden");
+    singleEntryFields.classList.remove("hidden");
     preview.style.display = "none";
     preview.src = "";
     appleOcrPaste.value = "";
@@ -1806,35 +1780,17 @@
     };
   }
 
-  // ---------- entry panel open/close ----------
-  // The entry fields are hidden by default; tapping the one clean button
-  // reveals them, and closing returns to the minimal scanner screen without
-  // losing whatever's mid-edit (the draft system already preserves that).
-
-  function hasDraftContent(){
-    if (batchModeActive && batchEntries.length) return true;
-    return !!(appleOcrPaste.value.trim() || suiteInput.value.trim() ||
-      companyInput.value.trim() || sfInput.value.trim() || notesInput.value.trim());
-  }
-
-  function updateOpenButtonLabel(){
-    openEntryPanelBtn.textContent = hasDraftContent() ? "📋 RESUME DRAFT ENTRY" : "📋 PASTE / SCAN BUILDING DATA";
-  }
-
-  function openEntryPanel(){
-    entrySection.classList.remove("hidden");
-    entrySection.scrollIntoView({ behavior: "smooth", block: "start" });
-    setTimeout(function(){ appleOcrPaste.focus(); }, 150);
-  }
+  // ---------- entry panel reset ----------
+  // The paste box is always visible. The single-entry fields and the batch
+  // review list are hidden by default and only revealed once parsing finds
+  // something (or Manual Entry is used). closeEntryPanel() returns to that
+  // clean paste-box-only view without touching the paste box's visibility.
 
   function closeEntryPanel(){
-    entrySection.classList.add("hidden");
-    updateOpenButtonLabel();
-    openEntryPanelBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+    singleEntryFields.classList.add("hidden");
+    batchReviewPanel.classList.add("hidden");
+    hideParseHint();
   }
-
-  openEntryPanelBtn.addEventListener("click", openEntryPanel);
-  closeEntryPanelBtn.addEventListener("click", closeEntryPanel);
 
   // ---------- save / discard ----------
 
@@ -1847,6 +1803,7 @@
     preview.style.display = "none";
     preview.src = "";
     appleOcrPaste.value = "";
+    bulkPasteBox.value = "";
     suiteInput.value = "";
     companyInput.value = "";
     notesInput.value = "";
@@ -1943,6 +1900,7 @@
     var ok = performSave();
     if (ok){
       resetEntryFields();
+      closeEntryPanel();
       entrySection.scrollIntoView({ behavior: "smooth", block: "start" });
       setTimeout(function(){ appleOcrPaste.focus(); }, 150);
     }
@@ -2235,7 +2193,6 @@
   seedBuildingsIfEmpty();
   restoreJobFields();
   restoreDraft();
-  updateOpenButtonLabel();
   updateMarkCompleteButton();
   renderRows();
   updateStatusBar();
