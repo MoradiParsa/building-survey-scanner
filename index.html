@@ -195,7 +195,56 @@
   .btn-biggest{ min-height:72px; font-size:1.18rem; letter-spacing:0.01em; }
   .btn-sm{ min-height:42px; font-size:0.82rem; }
 
+  .hidden{ display:none; }
   #entrySection.hidden{ display:none; }
+
+  .batch-intro{
+    font-size:0.84rem;
+    font-weight:600;
+    color:var(--ink);
+    background:#eef3ee;
+    border:1px solid var(--go);
+    border-radius:10px;
+    padding:8px 10px;
+    margin-bottom:10px;
+  }
+  .batch-entry{
+    border:2px solid var(--line);
+    border-radius:12px;
+    padding:10px 12px;
+    margin-bottom:12px;
+    background:#fbfaf7;
+  }
+  .batch-entry-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-weight:700;
+    font-size:0.84rem;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    margin-bottom:6px;
+  }
+  .batch-delete-btn{
+    font-size:0.74rem;
+    font-weight:700;
+    color:#fff;
+    background:var(--stop);
+    border:none;
+    border-radius:7px;
+    padding:6px 10px;
+    cursor:pointer;
+    -webkit-appearance:none;
+  }
+  .batch-entry-warn{
+    font-size:0.76rem;
+    color:var(--safety-dark);
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  .batch-entry label{ margin-top:8px; }
+  .batch-entry label:first-of-type{ margin-top:0; }
 
   .panel-header{
     display:flex;
@@ -594,24 +643,33 @@
       <button type="button" id="manualBtn">Manual Entry</button>
     </div>
 
-    <label for="suite">Suite number</label>
-    <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
+    <div id="singleEntryFields">
+      <label for="suite">Suite number</label>
+      <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
 
-    <label for="company">Company name</label>
-    <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines."></textarea>
+      <label for="company">Company name</label>
+      <textarea id="company" placeholder="e.g. Acme Logistics, LLC&#10;Multiple lines are kept as separate lines."></textarea>
 
-    <label for="sf">Square footage (optional)</label>
-    <input type="text" id="sf" placeholder="e.g. 1,200" autocomplete="off">
+      <label for="sf">Square footage (optional)</label>
+      <input type="text" id="sf" placeholder="e.g. 1,200" autocomplete="off">
 
-    <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
-    <textarea id="notes" placeholder="Any remarks. You can dictate this with the iPhone keyboard's mic button."></textarea>
+      <label for="notes">Notes (optional — tap the mic on your keyboard to dictate)</label>
+      <textarea id="notes" placeholder="Any remarks. You can dictate this with the iPhone keyboard's mic button."></textarea>
 
-    <button type="button" class="quick-vacant-btn" id="qVacant">VACANT</button>
+      <button type="button" class="quick-vacant-btn" id="qVacant">VACANT</button>
 
-    <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
-    <div class="btn-row">
-      <button class="btn btn-ghost btn-sm" id="saveBtn">Save (Stop Here)</button>
-      <button class="btn btn-stop btn-sm" id="discardBtn">Discard</button>
+      <button class="btn btn-save btn-biggest" id="saveNextBtn">✔ SAVE + NEXT</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" id="saveBtn">Save (Stop Here)</button>
+        <button class="btn btn-stop btn-sm" id="discardBtn">Discard</button>
+      </div>
+    </div>
+
+    <div id="batchReviewPanel" class="hidden">
+      <div class="batch-intro">Found <span id="batchCount">0</span> photo section(s) below — review or edit each one, then Save All.</div>
+      <div id="batchListWrap"></div>
+      <button class="btn btn-save btn-biggest" id="saveAllBtn">✔ SAVE ALL (<span id="batchSaveCount">0</span>)</button>
+      <button class="btn btn-stop btn-sm" id="discardBatchBtn">Discard Batch</button>
     </div>
 
     <div class="parse-hint" id="parseHint"></div>
@@ -850,6 +908,13 @@
   var entrySection = $("entrySection");
   var openEntryPanelBtn = $("openEntryPanelBtn");
   var closeEntryPanelBtn = $("closeEntryPanelBtn");
+  var singleEntryFields = $("singleEntryFields");
+  var batchReviewPanel = $("batchReviewPanel");
+  var batchListWrap = $("batchListWrap");
+  var batchCountEl = $("batchCount");
+  var batchSaveCountEl = $("batchSaveCount");
+  var saveAllBtn = $("saveAllBtn");
+  var discardBatchBtn = $("discardBatchBtn");
   var cameraInput = $("cameraInput");
   var scanBtn = $("scanBtn");
   var manualBtn = $("manualBtn");
@@ -1276,6 +1341,116 @@
     }
   }
 
+  // Detects a multi-photo paste like:
+  //   --- PHOTO 1 ---
+  //   (text)
+  //   --- PHOTO 2 ---
+  //   (text)
+  // Returns an array of section strings (one per photo), or null if no
+  // markers are found — in which case the existing single-photo path runs
+  // completely unchanged.
+  function splitMultiPhotoText(text){
+    var hasMarkers = /---\s*photo\s*\d+\s*---/i.test(text);
+    if (!hasMarkers) return null;
+    var sections = text.split(/---\s*photo\s*\d+\s*---/gi)
+      .map(function(s){ return s.trim(); })
+      .filter(function(s){ return s.length > 0; });
+    return sections.length ? sections : null;
+  }
+
+  var batchEntries = [];
+  var batchModeActive = false;
+
+  function updateBatchCounts(){
+    batchCountEl.textContent = batchEntries.length;
+    var saveable = batchEntries.filter(function(e){ return e.suite.trim() || e.company.trim(); }).length;
+    batchSaveCountEl.textContent = saveable;
+  }
+
+  function renderBatchList(){
+    if (!batchEntries.length){
+      batchListWrap.innerHTML = '<div class="empty">No entries.</div>';
+      return;
+    }
+    var html = "";
+    batchEntries.forEach(function(entry, idx){
+      var empty = !entry.suite.trim() && !entry.company.trim();
+      html += '<div class="batch-entry">' +
+        '<div class="batch-entry-header">' +
+          "<span>Photo " + (idx + 1) + "</span>" +
+          '<button type="button" class="batch-delete-btn" data-idx="' + idx + '">🗑 Delete</button>' +
+        "</div>" +
+        (empty ? '<div class="batch-entry-warn">⚠ Couldn\'t find a suite or company here — edit below, or delete this entry.</div>' : "") +
+        '<label>Suite number</label>' +
+        '<input type="text" class="batch-suite" data-idx="' + idx + '" value="' + escapeHtml(entry.suite) + '" placeholder="e.g. 1200">' +
+        '<label>Company name</label>' +
+        '<textarea class="batch-company" data-idx="' + idx + '" placeholder="e.g. Acme Logistics, LLC">' + escapeHtml(entry.company) + "</textarea>" +
+        '<label>Square footage (optional)</label>' +
+        '<input type="text" class="batch-sf" data-idx="' + idx + '" value="' + escapeHtml(entry.sf) + '" placeholder="e.g. 1,200">' +
+        '<label>Notes (optional)</label>' +
+        '<textarea class="batch-notes" data-idx="' + idx + '" placeholder="Any remarks">' + escapeHtml(entry.notes) + "</textarea>" +
+      "</div>";
+    });
+    batchListWrap.innerHTML = html;
+
+    batchListWrap.querySelectorAll(".batch-suite").forEach(function(el){
+      el.addEventListener("input", function(){
+        batchEntries[+el.getAttribute("data-idx")].suite = el.value;
+        updateBatchCounts();
+      });
+    });
+    batchListWrap.querySelectorAll(".batch-company").forEach(function(el){
+      el.addEventListener("input", function(){
+        batchEntries[+el.getAttribute("data-idx")].company = el.value;
+        updateBatchCounts();
+      });
+    });
+    batchListWrap.querySelectorAll(".batch-sf").forEach(function(el){
+      el.addEventListener("input", function(){
+        batchEntries[+el.getAttribute("data-idx")].sf = el.value;
+      });
+    });
+    batchListWrap.querySelectorAll(".batch-notes").forEach(function(el){
+      el.addEventListener("input", function(){
+        batchEntries[+el.getAttribute("data-idx")].notes = el.value;
+      });
+    });
+    batchListWrap.querySelectorAll(".batch-delete-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var idx = +btn.getAttribute("data-idx");
+        batchEntries.splice(idx, 1);
+        if (!batchEntries.length){
+          exitBatchMode();
+          return;
+        }
+        renderBatchList();
+        updateBatchCounts();
+      });
+    });
+  }
+
+  function startBatchReview(originalText, sections){
+    batchEntries = sections.map(function(sectionText){
+      var parsed = parseRawText(sectionText);
+      return { suite: parsed.suite, company: parsed.company, sf: "", notes: "", raw: parsed.raw };
+    });
+    batchModeActive = true;
+    rawText.value = originalText.trim();
+    hideParseHint();
+    setClipboardStatus("✓ Found " + batchEntries.length + " photo section(s) — review below", "success", true);
+    singleEntryFields.classList.add("hidden");
+    batchReviewPanel.classList.remove("hidden");
+    renderBatchList();
+    updateBatchCounts();
+  }
+
+  function exitBatchMode(){
+    batchModeActive = false;
+    batchEntries = [];
+    batchReviewPanel.classList.add("hidden");
+    singleEntryFields.classList.remove("hidden");
+  }
+
   // Single entry point for "we now have some text — import and parse it,"
   // whether it arrived via paste, the Parse Text button, or the fallback
   // clipboard button.
@@ -1286,8 +1461,16 @@
     }
     lastSeenClipboardText = text;
     appleOcrPaste.value = text;
-    var parsed = parseRawText(text);
-    applyParsedToFields(parsed);
+    saveDraft();
+
+    var sections = splitMultiPhotoText(text);
+    if (sections && sections.length){
+      startBatchReview(text, sections);
+    } else {
+      exitBatchMode();
+      var parsed = parseRawText(text);
+      applyParsedToFields(parsed);
+    }
   }
 
   // Fires automatically the instant a paste lands in the box — this is the
@@ -1480,6 +1663,7 @@
   // losing whatever's mid-edit (the draft system already preserves that).
 
   function hasDraftContent(){
+    if (batchModeActive && batchEntries.length) return true;
     return !!(appleOcrPaste.value.trim() || suiteInput.value.trim() ||
       companyInput.value.trim() || sfInput.value.trim() || notesInput.value.trim());
   }
@@ -1614,6 +1798,82 @@
       setTimeout(function(){ appleOcrPaste.focus(); }, 150);
     }
   });
+
+  // ---------- multi-photo batch save ----------
+
+  discardBatchBtn.addEventListener("click", function(){
+    exitBatchMode();
+    resetEntryFields();
+    closeEntryPanel();
+  });
+
+  function performBatchSaveAll(){
+    var building = buildingInput.value.trim();
+    var floor = floorInput.value.trim();
+    if (!building || !floor){
+      alert("Enter the Building address and Floor at the top before saving.");
+      return;
+    }
+    if (!batchEntries.length){
+      alert("No entries to save.");
+      return;
+    }
+
+    var rows = getRows();
+    var snapshotBeforeSave = JSON.stringify(rows);
+    var savedCount = 0, skippedEmpty = 0, skippedDup = 0;
+
+    batchEntries.forEach(function(entry, idx){
+      var suite = entry.suite.trim();
+      var company = entry.company.trim();
+      if (!suite && !company){ skippedEmpty++; return; }
+      var isDup = rows.some(function(r){
+        return r.building.toLowerCase() === building.toLowerCase() &&
+          r.floor.toLowerCase() === floor.toLowerCase() &&
+          r.suite.toLowerCase() === suite.toLowerCase();
+      });
+      if (isDup){ skippedDup++; return; }
+      rows.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + idx,
+        building: building,
+        floor: floor,
+        suite: suite,
+        company: company,
+        sf: entry.sf.trim(),
+        notes: entry.notes.trim(),
+        savedAt: new Date().toISOString()
+      });
+      savedCount++;
+    });
+
+    if (!savedCount){
+      var nothingMsg = "Nothing new to save.";
+      if (skippedDup) nothingMsg += " " + skippedDup + " entr" + (skippedDup === 1 ? "y" : "ies") + " already exist for this Building/Floor/Suite.";
+      if (skippedEmpty) nothingMsg += " " + skippedEmpty + " " + (skippedEmpty === 1 ? "was" : "were") + " blank.";
+      alert(nothingMsg);
+      return;
+    }
+
+    var ok = saveRows(rows);
+    if (!ok) return;
+
+    localStorage.setItem(UNDO_KEY, snapshotBeforeSave);
+    renderRows();
+    updateStatusBar();
+    updateUndoButtonState();
+    maybeShowExportReminder(rows.length);
+
+    var msg = "Saved " + savedCount + " entr" + (savedCount === 1 ? "y" : "ies") + ".";
+    if (skippedDup) msg += " " + skippedDup + " already existed and " + (skippedDup === 1 ? "was" : "were") + " skipped.";
+    if (skippedEmpty) msg += " " + skippedEmpty + " " + (skippedEmpty === 1 ? "was" : "were") + " blank and skipped.";
+    alert(msg);
+
+    exitBatchMode();
+    resetEntryFields();
+    closeEntryPanel();
+  }
+
+  saveAllBtn.addEventListener("click", performBatchSaveAll);
 
   // ---------- undo last save ----------
 
