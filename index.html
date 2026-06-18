@@ -195,6 +195,30 @@
   .btn-biggest{ min-height:72px; font-size:1.18rem; letter-spacing:0.01em; }
   .btn-sm{ min-height:42px; font-size:0.82rem; }
 
+  #entrySection.hidden{ display:none; }
+
+  .panel-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .panel-header h2{ margin:0; }
+  .panel-close-btn{
+    flex:0 0 auto;
+    font-size:0.78rem;
+    font-weight:700;
+    color:var(--ink);
+    background:#fff;
+    border:2px solid var(--line);
+    border-radius:8px;
+    padding:7px 12px;
+    cursor:pointer;
+    -webkit-appearance:none;
+  }
+  .panel-close-btn:active{ background:var(--paper); }
+
   .btn-primary{ background:var(--safety); }
   .btn-primary:active{ background:var(--safety-dark); }
 
@@ -549,8 +573,13 @@
     <button class="btn btn-ghost btn-sm" id="markCompleteBtn" style="margin-top:10px;">✔ Mark Building Complete</button>
   </section>
 
-  <section id="entrySection">
-    <h2>Add an Entry</h2>
+  <button class="btn btn-primary btn-biggest" id="openEntryPanelBtn">📋 PASTE / SCAN BUILDING DATA</button>
+
+  <section id="entrySection" class="hidden">
+    <div class="panel-header">
+      <h2>Add an Entry</h2>
+      <button type="button" class="panel-close-btn" id="closeEntryPanelBtn">✕ Close</button>
+    </div>
 
     <div class="instructions">Use the iPhone Shortcut to take a plaque photo and copy Apple OCR text, then tap the box below and paste.</div>
 
@@ -819,6 +848,8 @@
   var pasteClipboardBtn = $("pasteClipboardBtn");
   var clipboardStatus = $("clipboardStatus");
   var entrySection = $("entrySection");
+  var openEntryPanelBtn = $("openEntryPanelBtn");
+  var closeEntryPanelBtn = $("closeEntryPanelBtn");
   var cameraInput = $("cameraInput");
   var scanBtn = $("scanBtn");
   var manualBtn = $("manualBtn");
@@ -1078,6 +1109,7 @@
     }
     toggleCompleted(b);
     updateMarkCompleteButton();
+    closeEntryPanel();
   });
 
   // ---------- floor down ----------
@@ -1442,10 +1474,40 @@
     };
   }
 
+  // ---------- entry panel open/close ----------
+  // The entry fields are hidden by default; tapping the one clean button
+  // reveals them, and closing returns to the minimal scanner screen without
+  // losing whatever's mid-edit (the draft system already preserves that).
+
+  function hasDraftContent(){
+    return !!(appleOcrPaste.value.trim() || suiteInput.value.trim() ||
+      companyInput.value.trim() || sfInput.value.trim() || notesInput.value.trim());
+  }
+
+  function updateOpenButtonLabel(){
+    openEntryPanelBtn.textContent = hasDraftContent() ? "📋 RESUME DRAFT ENTRY" : "📋 PASTE / SCAN BUILDING DATA";
+  }
+
+  function openEntryPanel(){
+    entrySection.classList.remove("hidden");
+    entrySection.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(function(){ appleOcrPaste.focus(); }, 150);
+  }
+
+  function closeEntryPanel(){
+    entrySection.classList.add("hidden");
+    updateOpenButtonLabel();
+    openEntryPanelBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  openEntryPanelBtn.addEventListener("click", openEntryPanel);
+  closeEntryPanelBtn.addEventListener("click", closeEntryPanel);
+
   // ---------- save / discard ----------
 
   discardBtn.addEventListener("click", function(){
     resetEntryFields();
+    closeEntryPanel();
   });
 
   function resetEntryFields(){
@@ -1538,7 +1600,10 @@
 
   saveBtn.addEventListener("click", function(){
     var ok = performSave();
-    if (ok) resetEntryFields();
+    if (ok){
+      resetEntryFields();
+      closeEntryPanel();
+    }
   });
 
   saveNextBtn.addEventListener("click", function(){
@@ -1761,6 +1826,7 @@
   seedBuildingsIfEmpty();
   restoreJobFields();
   restoreDraft();
+  updateOpenButtonLabel();
   updateMarkCompleteButton();
   renderRows();
   updateStatusBar();

@@ -334,6 +334,19 @@
     cursor:pointer;
   }
   .popup-select-btn.selected{ background:var(--go); color:#fff; border-color:var(--go); }
+  .popup-final-btn{
+    width:100%;
+    margin-top:6px;
+    min-height:34px;
+    border-radius:7px;
+    border:2px solid var(--safety);
+    background:#fff;
+    color:var(--safety-dark);
+    font-weight:700;
+    font-size:0.76rem;
+    cursor:pointer;
+  }
+  .popup-final-btn.active{ background:var(--safety); color:#fff; border-color:var(--safety); }
 
   .leaflet-div-icon.selected-marker-icon{ background:transparent; border:none; }
   .selected-marker-pin{
@@ -349,6 +362,18 @@
     color:#fff;
     font-weight:900;
     font-size:13px;
+  }
+  .final-dest-pin{
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    background:var(--safety);
+    border:3px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,0.45);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:14px;
   }
 
   /* building list */
@@ -388,6 +413,29 @@
     padding:2px 9px;
     margin-top:5px;
   }
+  .map-row-final{
+    display:inline-block;
+    font-size:0.7rem;
+    font-weight:700;
+    color:#fff;
+    background:var(--safety);
+    border-radius:999px;
+    padding:2px 9px;
+    margin-top:5px;
+  }
+  .final-dest-btn{
+    width:100%;
+    margin-top:8px;
+    min-height:38px;
+    border-radius:8px;
+    border:2px solid var(--safety);
+    background:#fff;
+    color:var(--safety-dark);
+    font-weight:700;
+    font-size:0.78rem;
+    cursor:pointer;
+  }
+  .final-dest-btn.active{ background:var(--safety); color:#fff; border-color:var(--safety); }
   .map-row-actions{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
   .map-row-actions a, .map-row-actions button{
     flex:1;
@@ -531,8 +579,9 @@
       <button type="button" class="btn-compact" id="clearSelectedBtn">Clear Selected</button>
       <span class="selected-count" id="selectedCount">0 selected</span>
     </div>
+    <div class="hint" id="finalDestStatus">No final destination chosen yet — the last selected building will be used by default.</div>
     <button class="btn btn-save" id="openRouteBtn">🧭 OPEN ROUTE</button>
-    <div class="hint">Check buildings below (search/filter first to narrow them down), then tap Open Route to plan a multi-stop drive in Google Maps.</div>
+    <div class="hint">Routes start from your current location. Choose a final destination before opening the route.</div>
 
     <h2 style="margin-top:16px;">Buildings <span class="count-pill" id="bldCount">0</span></h2>
     <div id="bldListWrap">
@@ -698,6 +747,7 @@
   var selectUnvisitedBtn = $("selectUnvisitedBtn");
   var clearSelectedBtn = $("clearSelectedBtn");
   var selectedCountEl = $("selectedCount");
+  var finalDestStatusEl = $("finalDestStatus");
   var openRouteBtn = $("openRouteBtn");
   var fullScreenBtn = $("fullScreenBtn");
   var exitFullScreenBtn = $("exitFullScreenBtn");
@@ -709,6 +759,7 @@
   var buildings = [];
   var markersById = {};
   var selectedIds = new Set();
+  var finalDestinationId = null;
   var editingId = null;
   var fullscreenActive = false;
 
@@ -942,6 +993,7 @@
     if (!ok) return;
     buildings = buildings.filter(function(x){ return x.id !== id; });
     selectedIds.delete(id);
+    if (finalDestinationId === id) finalDestinationId = null;
     if (editingId === id) editingId = null;
     saveBuildings();
     renderAll();
@@ -981,10 +1033,29 @@
     selectedCountEl.textContent = selectedIds.size + " selected";
   }
 
+  function updateFinalDestStatus(){
+    if (!finalDestStatusEl) return;
+    if (!finalDestinationId){
+      finalDestStatusEl.textContent = "No final destination chosen yet — the last selected building will be used by default.";
+      return;
+    }
+    var b = buildings.filter(function(x){ return x.id === finalDestinationId; })[0];
+    finalDestStatusEl.textContent = b ? ("🏁 Final destination: " + (b.displayName || b.address)) : "No final destination chosen yet — the last selected building will be used by default.";
+  }
+
   function toggleSelected(id, checked){
     if (checked) selectedIds.add(id); else selectedIds.delete(id);
+    if (!checked && finalDestinationId === id) finalDestinationId = null;
     updateSelectedCount();
+    updateFinalDestStatus();
     refreshAllMarkerIcons();
+  }
+
+  function setFinalDestination(id){
+    finalDestinationId = (finalDestinationId === id) ? null : id;
+    updateFinalDestStatus();
+    refreshAllMarkerIcons();
+    renderBuildingList();
   }
 
   selectAllVisibleBtn.addEventListener("click", function(){
@@ -1001,9 +1072,42 @@
   });
   clearSelectedBtn.addEventListener("click", function(){
     selectedIds.clear();
+    finalDestinationId = null;
     renderBuildingList();
     refreshAllMarkerIcons();
   });
+
+  function haversineDistanceKm(lat1, lng1, lat2, lng2){
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // Simple greedy nearest-neighbor ordering: from the start point, repeatedly
+  // hop to whichever remaining stop is closest. Stops without coordinates
+  // can't be distance-ranked, so they're left in original order at the end.
+  function orderByNearestNeighbor(startLat, startLng, stops){
+    var withCoords = stops.filter(function(b){ return b.lat != null && b.lng != null; });
+    var withoutCoords = stops.filter(function(b){ return b.lat == null || b.lng == null; });
+    var remaining = withCoords.slice();
+    var ordered = [];
+    var curLat = startLat, curLng = startLng;
+    while (remaining.length){
+      var bestIdx = 0, bestDist = Infinity;
+      for (var i = 0; i < remaining.length; i++){
+        var d = haversineDistanceKm(curLat, curLng, remaining[i].lat, remaining[i].lng);
+        if (d < bestDist){ bestDist = d; bestIdx = i; }
+      }
+      var next = remaining.splice(bestIdx, 1)[0];
+      ordered.push(next);
+      curLat = next.lat; curLng = next.lng;
+    }
+    return ordered.concat(withoutCoords);
+  }
 
   function stopLocationString(b){
     if (b.lat != null && b.lng != null) return b.lat + "," + b.lng;
@@ -1016,22 +1120,52 @@
       alert("Select at least one building first — tap the checkbox on each row, or use \"Select All Visible\" / \"Select Unvisited\".");
       return;
     }
-    var capped = selected.length > MAX_ROUTE_STOPS;
-    if (capped) selected = selected.slice(0, MAX_ROUTE_STOPS);
 
-    var destination = selected[selected.length - 1];
-    var waypointBuildings = selected.slice(0, -1);
-    var url = "https://www.google.com/maps/dir/?api=1&destination=" +
-      encodeURIComponent(stopLocationString(destination)) + "&travelmode=driving";
-    if (waypointBuildings.length){
-      url += "&waypoints=" + waypointBuildings.map(function(b){
-        return encodeURIComponent(stopLocationString(b));
-      }).join("|");
+    // A final destination is required; default to the last selected one if none was chosen.
+    if (!finalDestinationId || !selectedIds.has(finalDestinationId)){
+      finalDestinationId = selected[selected.length - 1].id;
+      updateFinalDestStatus();
+      renderBuildingList();
+      refreshAllMarkerIcons();
     }
-    if (capped){
-      alert("Google Maps' free directions support up to " + MAX_ROUTE_STOPS + " stops in one route. Opening a route for the first " + MAX_ROUTE_STOPS + " selected buildings; the rest were left out.");
+    var destination = buildings.filter(function(b){ return b.id === finalDestinationId; })[0];
+    var middleStops = selected.filter(function(b){ return b.id !== finalDestinationId; });
+
+    function buildAndOpenUrl(orderedMiddle){
+      var capped = orderedMiddle.length > (MAX_ROUTE_STOPS - 1);
+      if (capped) orderedMiddle = orderedMiddle.slice(0, MAX_ROUTE_STOPS - 1);
+      var url = "https://www.google.com/maps/dir/?api=1&destination=" +
+        encodeURIComponent(stopLocationString(destination)) + "&travelmode=driving";
+      if (orderedMiddle.length){
+        url += "&waypoints=" + orderedMiddle.map(function(b){
+          return encodeURIComponent(stopLocationString(b));
+        }).join("|");
+      }
+      if (capped){
+        alert("Google Maps' free directions support up to " + MAX_ROUTE_STOPS + " stops in one route. Using your final destination plus the nearest " + (MAX_ROUTE_STOPS - 1) + " stop(s); the rest were left out.");
+      }
+      // No origin is set on purpose — Google Maps starts from "Your location"
+      // automatically, and falls back to asking the rider to set a start
+      // point itself if location permission was denied.
+      window.open(url, "_blank", "noopener");
     }
-    window.open(url, "_blank", "noopener");
+
+    if (navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        function(pos){
+          var ordered = orderByNearestNeighbor(pos.coords.latitude, pos.coords.longitude, middleStops);
+          buildAndOpenUrl(ordered);
+        },
+        function(){
+          // Permission denied or unavailable — still open the route, just
+          // without nearest-neighbor ordering for the middle stops.
+          buildAndOpenUrl(middleStops);
+        },
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    } else {
+      buildAndOpenUrl(middleStops);
+    }
   });
 
   // ---------- geocoding (free OpenStreetMap Nominatim, rate-limited) ----------
@@ -1170,13 +1304,22 @@
     popupAnchor: [0, -16]
   });
 
-  function iconFor(b){
-    return selectedIds.has(b.id) ? SELECTED_ICON : new L.Icon.Default();
+  var FINAL_DEST_ICON = L.divIcon({
+    className: "selected-marker-icon",
+    html: '<div class="final-dest-pin">🏁</div>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16]
+  });
+
+  function iconForId(id){
+    if (id === finalDestinationId) return FINAL_DEST_ICON;
+    return selectedIds.has(id) ? SELECTED_ICON : new L.Icon.Default();
   }
 
   function refreshAllMarkerIcons(){
     Object.keys(markersById).forEach(function(id){
-      markersById[id].setIcon(selectedIds.has(id) ? SELECTED_ICON : new L.Icon.Default());
+      markersById[id].setIcon(iconForId(id));
     });
   }
 
@@ -1197,6 +1340,7 @@
   function buildPopupHtml(b){
     var visited = isVisited(b.address);
     var selected = selectedIds.has(b.id);
+    var isFinal = (b.id === finalDestinationId);
     var links = mapsLinks(b);
     return '<div class="popup-card" data-id="' + b.id + '">' +
       "<strong>" + escapeHtml(b.displayName || b.address) + "</strong>" +
@@ -1213,6 +1357,10 @@
       '<button class="popup-select-btn' + (selected ? " selected" : "") + '" data-id="' + b.id + '">' +
         (selected ? "✓ Selected — Remove from Route" : "☐ Select for Route") +
       "</button>" +
+      (selected ?
+        '<button class="popup-final-btn' + (isFinal ? " active" : "") + '" data-id="' + b.id + '">' +
+          (isFinal ? "🏁 Final Destination (tap to unset)" : "🏁 Set as Final Destination") +
+        "</button>" : "") +
     "</div>";
   }
 
@@ -1236,6 +1384,13 @@
           renderBuildingList();
         });
       }
+      var finalBtn = el.querySelector(".popup-final-btn");
+      if (finalBtn){
+        finalBtn.addEventListener("click", function(){
+          setFinalDestination(b.id);
+          marker.setPopupContent(buildPopupHtml(b));
+        });
+      }
     });
   }
 
@@ -1257,7 +1412,7 @@
     var bounds = [];
     filtered.forEach(function(b){
       if (b.lat == null) return;
-      var marker = L.marker([b.lat, b.lng], { icon: iconFor(b) });
+      var marker = L.marker([b.lat, b.lng], { icon: iconForId(b.id) });
       marker.bindPopup(buildPopupHtml(b));
       wirePopup(marker, b);
       clusterGroup.addLayer(marker);
@@ -1299,6 +1454,7 @@
     var filtered = getFilteredBuildings();
     bldCount.textContent = filtered.length + (filtered.length !== buildings.length ? " / " + buildings.length : "");
     updateSelectedCount();
+    updateFinalDestStatus();
 
     if (!buildings.length){
       bldListWrap.innerHTML = '<div class="empty">No buildings yet. Import a list or add one above to get started.</div>';
@@ -1315,6 +1471,7 @@
       var visited = isVisited(b.address);
       var links = mapsLinks(b);
       var checked = selectedIds.has(b.id);
+      var isFinal = (b.id === finalDestinationId);
       html += '<div class="map-row' + (editing ? " editing" : "") + '" data-id="' + b.id + '">' +
         '<div class="map-row-main">' +
           '<span class="row-select"><input type="checkbox" class="row-checkbox" data-id="' + b.id + '"' + (checked ? " checked" : "") + '></span>' +
@@ -1324,9 +1481,14 @@
             (b.status ? '<div><span class="map-row-status">' + escapeHtml(b.status) + "</span></div>" : "") +
             (b.notes ? '<div class="map-row-notes">' + escapeHtml(b.notes) + "</div>" : "") +
             (b.lat == null ? '<div><span class="map-row-warn">⚠ Needs Coordinates</span></div>' : "") +
+            (isFinal ? '<div><span class="map-row-final">🏁 Final Destination</span></div>' : "") +
           "</span>" +
           (visited ? '<span class="map-row-check">✓ Visited</span>' : "") +
         "</div>" +
+        (checked && !editing ?
+          '<button type="button" class="final-dest-btn' + (isFinal ? " active" : "") + '" data-id="' + b.id + '">' +
+            (isFinal ? "🏁 Final Destination (tap to unset)" : "🏁 Set as Final Destination") +
+          "</button>" : "") +
         (editing ? editFormHtml(b) :
         '<div class="map-row-actions">' +
           '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple</a>' +
@@ -1356,6 +1518,12 @@
     bldListWrap.querySelectorAll(".row-checkbox").forEach(function(cb){
       cb.addEventListener("change", function(){
         toggleSelected(cb.getAttribute("data-id"), cb.checked);
+      });
+    });
+
+    bldListWrap.querySelectorAll(".final-dest-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        setFinalDestination(btn.getAttribute("data-id"));
       });
     });
 
