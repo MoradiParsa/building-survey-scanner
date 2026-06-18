@@ -727,7 +727,7 @@
     </div>
     <div class="job-field">
         <label for="floor">Floor</label>
-        <input type="text" id="floor" placeholder="e.g. 4 or 4th" autocomplete="off">
+        <input type="text" inputmode="numeric" id="floor" placeholder="e.g. 4 or 4th" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       </div>
   </section>
 
@@ -753,10 +753,10 @@
 
     <div id="singleEntryFields" class="hidden">
       <label for="suite">Suite number</label>
-      <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
+      <input type="text" inputmode="numeric" id="suite" placeholder="e.g. 1200" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       <div class="floor-detect-strip hidden" id="manualFloorStrip">
         <span class="floor-detect-label">Detected floor:</span>
-        <input type="text" class="floor-detect-input" id="manualFloorInput" placeholder="—">
+        <input type="text" inputmode="numeric" class="floor-detect-input" id="manualFloorInput" placeholder="—" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       </div>
 
       <label for="company">Company name</label>
@@ -799,7 +799,7 @@
       <div id="batchListWrap"></div>
       <div class="floor-detect-strip" id="batchFloorStrip">
         <span class="floor-detect-label">Floor for this batch:</span>
-        <input type="text" class="floor-detect-input" id="batchFloorInput" placeholder="e.g. 7">
+        <input type="text" inputmode="numeric" class="floor-detect-input" id="batchFloorInput" placeholder="e.g. 7" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       </div>
       <button class="btn btn-save btn-biggest" id="saveAllBtn">✔ SAVE ALL (<span id="batchSaveCount">0</span>)</button>
       <button class="btn btn-stop btn-sm" id="discardBatchBtn">Discard Batch</button>
@@ -1481,7 +1481,7 @@
         "</div>" +
         (empty ? '<div class="batch-entry-warn">⚠ Couldn\'t find a suite or company here — edit below, or delete this entry.</div>' : "") +
         '<label>Suite number</label>' +
-        '<input type="text" class="batch-suite" data-idx="' + idx + '" value="' + escapeHtml(entry.suite) + '" placeholder="e.g. 1200">' +
+        '<input type="text" inputmode="numeric" class="batch-suite" data-idx="' + idx + '" value="' + escapeHtml(entry.suite) + '" placeholder="e.g. 1200" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">' +
         '<label>Company name</label>' +
         '<textarea class="batch-company" data-idx="' + idx + '" placeholder="e.g. Acme Logistics, LLC">' + escapeHtml(entry.company) + "</textarea>" +
         '<label>Square footage (optional)</label>' +
@@ -2707,9 +2707,9 @@
                 '<label>Building</label>' +
                 '<input type="text" class="edit-building" data-id="' + r.id + '" value="' + escapeHtml(r.building || "") + '">' +
                 '<label>Floor</label>' +
-                '<input type="text" class="edit-floor" data-id="' + r.id + '" value="' + escapeHtml(r.floor || "") + '">' +
+                '<input type="text" inputmode="numeric" class="edit-floor" data-id="' + r.id + '" value="' + escapeHtml(r.floor || "") + '" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">' +
                 '<label>Suite</label>' +
-                '<input type="text" class="edit-suite" data-id="' + r.id + '" value="' + escapeHtml(r.suite || "") + '">' +
+                '<input type="text" inputmode="numeric" class="edit-suite" data-id="' + r.id + '" value="' + escapeHtml(r.suite || "") + '" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">' +
                 '<label>Company</label>' +
                 '<textarea class="edit-company" data-id="' + r.id + '">' + escapeHtml(r.company || "") + '</textarea>' +
                 '<label>Square footage</label>' +
