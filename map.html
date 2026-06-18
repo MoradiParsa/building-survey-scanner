@@ -321,6 +321,35 @@
     font-size:0.76rem;
     cursor:pointer;
   }
+  .popup-select-btn{
+    width:100%;
+    margin-top:6px;
+    min-height:34px;
+    border-radius:7px;
+    border:2px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-weight:700;
+    font-size:0.76rem;
+    cursor:pointer;
+  }
+  .popup-select-btn.selected{ background:var(--go); color:#fff; border-color:var(--go); }
+
+  .leaflet-div-icon.selected-marker-icon{ background:transparent; border:none; }
+  .selected-marker-pin{
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    background:var(--go);
+    border:3px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,0.45);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+    font-weight:900;
+    font-size:13px;
+  }
 
   /* building list */
   .map-row{
@@ -955,21 +984,25 @@
   function toggleSelected(id, checked){
     if (checked) selectedIds.add(id); else selectedIds.delete(id);
     updateSelectedCount();
+    refreshAllMarkerIcons();
   }
 
   selectAllVisibleBtn.addEventListener("click", function(){
     getFilteredBuildings().forEach(function(b){ selectedIds.add(b.id); });
     renderBuildingList();
+    refreshAllMarkerIcons();
   });
   selectUnvisitedBtn.addEventListener("click", function(){
     getFilteredBuildings().forEach(function(b){
       if (!isVisited(b.address)) selectedIds.add(b.id);
     });
     renderBuildingList();
+    refreshAllMarkerIcons();
   });
   clearSelectedBtn.addEventListener("click", function(){
     selectedIds.clear();
     renderBuildingList();
+    refreshAllMarkerIcons();
   });
 
   function stopLocationString(b){
@@ -1129,6 +1162,24 @@
   var clusterGroup = L.markerClusterGroup();
   map.addLayer(clusterGroup);
 
+  var SELECTED_ICON = L.divIcon({
+    className: "selected-marker-icon",
+    html: '<div class="selected-marker-pin">✓</div>',
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -16]
+  });
+
+  function iconFor(b){
+    return selectedIds.has(b.id) ? SELECTED_ICON : new L.Icon.Default();
+  }
+
+  function refreshAllMarkerIcons(){
+    Object.keys(markersById).forEach(function(id){
+      markersById[id].setIcon(selectedIds.has(id) ? SELECTED_ICON : new L.Icon.Default());
+    });
+  }
+
   function mapsLinks(b){
     var apple, google;
     if (b.lat != null){
@@ -1145,6 +1196,7 @@
 
   function buildPopupHtml(b){
     var visited = isVisited(b.address);
+    var selected = selectedIds.has(b.id);
     var links = mapsLinks(b);
     return '<div class="popup-card" data-id="' + b.id + '">' +
       "<strong>" + escapeHtml(b.displayName || b.address) + "</strong>" +
@@ -1158,6 +1210,9 @@
       '<button class="popup-visit-btn" data-id="' + b.id + '">' +
         (visited ? "✓ Visited — tap to unmark" : "Mark Visited") +
       "</button>" +
+      '<button class="popup-select-btn' + (selected ? " selected" : "") + '" data-id="' + b.id + '">' +
+        (selected ? "✓ Selected — Remove from Route" : "☐ Select for Route") +
+      "</button>" +
     "</div>";
   }
 
@@ -1165,10 +1220,18 @@
     marker.on("popupopen", function(e){
       var el = e.popup.getElement();
       if (!el) return;
-      var btn = el.querySelector(".popup-visit-btn");
-      if (btn){
-        btn.addEventListener("click", function(){
+      var visitBtn = el.querySelector(".popup-visit-btn");
+      if (visitBtn){
+        visitBtn.addEventListener("click", function(){
           toggleVisited(b.address);
+          marker.setPopupContent(buildPopupHtml(b));
+          renderBuildingList();
+        });
+      }
+      var selectBtn = el.querySelector(".popup-select-btn");
+      if (selectBtn){
+        selectBtn.addEventListener("click", function(){
+          toggleSelected(b.id, !selectedIds.has(b.id));
           marker.setPopupContent(buildPopupHtml(b));
           renderBuildingList();
         });
@@ -1194,7 +1257,7 @@
     var bounds = [];
     filtered.forEach(function(b){
       if (b.lat == null) return;
-      var marker = L.marker([b.lat, b.lng]);
+      var marker = L.marker([b.lat, b.lng], { icon: iconFor(b) });
       marker.bindPopup(buildPopupHtml(b));
       wirePopup(marker, b);
       clusterGroup.addLayer(marker);
