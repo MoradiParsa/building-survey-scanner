@@ -303,8 +303,8 @@
     margin-bottom:10px;
   }
 
-  .shortcut-help, .webocr-details, .raw-details{ margin-top:10px; }
-  .shortcut-help summary, .webocr-details summary, .raw-details summary{
+  .shortcut-help, .webocr-details, .raw-details, .bulk-paste-details{ margin-top:10px; }
+  .shortcut-help summary, .webocr-details summary, .raw-details summary, .bulk-paste-details summary{
     font-size:0.76rem;
     font-weight:700;
     color:var(--muted);
@@ -313,6 +313,14 @@
   }
   .shortcut-steps{ margin:8px 0 2px; padding-left:20px; font-size:0.8rem; line-height:1.5; color:var(--ink); }
   .shortcut-steps li{ margin-bottom:6px; }
+
+  textarea.paste-box-large{ min-height:260px; }
+  .bulk-paste-hint{
+    font-size:0.78rem;
+    color:var(--muted);
+    margin:6px 0 8px;
+    line-height:1.4;
+  }
 
   .paste-fallback-row{ display:flex; gap:6px; margin:8px 0 0; }
   .paste-fallback-row button{
@@ -643,6 +651,14 @@
       <button type="button" id="manualBtn">Manual Entry</button>
     </div>
 
+    <details class="bulk-paste-details">
+      <summary>⚠️ Paste landing incomplete? Use full-text fallback</summary>
+      <div class="bulk-paste-hint">If a direct Shortcut paste sometimes lands partially above, paste the full OCR block here instead. Nothing happens automatically — paste the whole thing first, then tap Parse Full Text when you're sure it all landed.</div>
+      <label for="bulkPasteBox">Paste the full OCR text here</label>
+      <textarea id="bulkPasteBox" class="paste-box paste-box-large" placeholder="Paste the complete OCR block here, then tap Parse Full Text."></textarea>
+      <button type="button" class="btn btn-save btn-biggest" id="parseFullTextBtn">Parse Full Text</button>
+    </details>
+
     <div id="singleEntryFields">
       <label for="suite">Suite number</label>
       <input type="text" id="suite" placeholder="e.g. 1200" autocomplete="off">
@@ -904,6 +920,8 @@
   var appleOcrPaste = $("appleOcrPaste");
   var parsePasteBtn = $("parsePasteBtn");
   var pasteClipboardBtn = $("pasteClipboardBtn");
+  var bulkPasteBox = $("bulkPasteBox");
+  var parseFullTextBtn = $("parseFullTextBtn");
   var clipboardStatus = $("clipboardStatus");
   var entrySection = $("entrySection");
   var openEntryPanelBtn = $("openEntryPanelBtn");
@@ -1605,6 +1623,15 @@
   // (e.g. text was typed or dictated in instead of pasted).
   parsePasteBtn.addEventListener("click", function(){
     processIncomingText(appleOcrPaste.value);
+  });
+
+  // Fallback large paste box: deliberately has NO paste listener of its own.
+  // The text just sits there however much of it lands, however long it
+  // takes, and parsing only happens on this explicit click — so a large
+  // Shortcut clipboard payload that arrives in Safari a little behind the
+  // paste event still gets parsed in full once the user is sure it's all in.
+  parseFullTextBtn.addEventListener("click", function(){
+    processIncomingText(bulkPasteBox.value);
   });
 
   // Small fallback only: a one-off explicit clipboard read, triggered by a
