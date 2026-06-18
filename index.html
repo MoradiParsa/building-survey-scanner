@@ -559,7 +559,8 @@
     padding:8px 12px;
     margin:8px 0 4px;
   }
-  .floor-detect-strip.hidden{ display:none; }
+  .floor-detect-strip.hidden,
+  .floor-detect-strip.floor-detect-strip--hidden{ display:none; }
   .floor-detect-label{
     font-size:0.76rem;
     font-weight:700;
@@ -1474,6 +1475,11 @@
     var html = "";
     batchEntries.forEach(function(entry, idx){
       var empty = !entry.suite.trim() && !entry.company.trim();
+      var detectedFloor = detectFloorFromSuite(entry.suite);
+      // Use a stored per-entry floor if the user already set one, else detected, else blank
+      var entryFloor = entry.floor || detectedFloor || "";
+      var stripHidden = entryFloor ? "" : " floor-detect-strip--hidden";
+
       html += '<div class="batch-entry">' +
         '<div class="batch-entry-header">' +
           "<span>Entry " + (idx + 1) + "</span>" +
@@ -1482,6 +1488,10 @@
         (empty ? '<div class="batch-entry-warn">⚠ Couldn\'t find a suite or company here — edit below, or delete this entry.</div>' : "") +
         '<label>Suite number</label>' +
         '<input type="text" inputmode="numeric" class="batch-suite" data-idx="' + idx + '" value="' + escapeHtml(entry.suite) + '" placeholder="e.g. 1200" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">' +
+        '<div class="floor-detect-strip' + stripHidden + '" data-floor-strip="' + idx + '">' +
+          '<span class="floor-detect-label">Detected floor:</span>' +
+          '<input type="text" inputmode="numeric" class="batch-entry-floor" data-idx="' + idx + '" value="' + escapeHtml(entryFloor) + '" placeholder="—" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">' +
+        '</div>' +
         '<label>Company name</label>' +
         '<textarea class="batch-company" data-idx="' + idx + '" placeholder="e.g. Acme Logistics, LLC">' + escapeHtml(entry.company) + "</textarea>" +
         '<label>Square footage (optional)</label>' +
@@ -1491,6 +1501,9 @@
         notesChipHtml +
         '<textarea class="batch-notes" data-idx="' + idx + '" placeholder="Any remarks">' + escapeHtml(entry.notes) + "</textarea>" +
       "</div>";
+
+      // Store detected floor back onto the entry object if not already set
+      if (detectedFloor && !entry.floor) entry.floor = detectedFloor;
     });
     batchListWrap.innerHTML = html;
 
@@ -1499,7 +1512,20 @@
         var idx = +el.getAttribute("data-idx");
         batchEntries[idx].suite = el.value;
         updateBatchCounts();
-        // Auto-detect floor from suite and update batch floor strip
+
+        // Update this entry's floor strip in real time
+        var detected = detectFloorFromSuite(el.value);
+        var strip = batchListWrap.querySelector('[data-floor-strip="' + idx + '"]');
+        var floorEl = batchListWrap.querySelector('.batch-entry-floor[data-idx="' + idx + '"]');
+        if (strip && floorEl){
+          if (detected){
+            strip.classList.remove("floor-detect-strip--hidden");
+            if (!floorEl.value.trim()) floorEl.value = detected;
+            batchEntries[idx].floor = floorEl.value.trim() || detected;
+          } else {
+            strip.classList.add("floor-detect-strip--hidden");
+          }
+        }
         updateBatchFloorFromEntries();
       });
     });
@@ -1517,6 +1543,16 @@
     batchListWrap.querySelectorAll(".batch-notes").forEach(function(el){
       el.addEventListener("input", function(){
         batchEntries[+el.getAttribute("data-idx")].notes = el.value;
+      });
+    });
+
+    // Per-entry floor strip edits
+    batchListWrap.querySelectorAll(".batch-entry-floor").forEach(function(el){
+      el.addEventListener("input", function(){
+        var idx = +el.getAttribute("data-idx");
+        batchEntries[idx].floor = el.value.trim();
+        // Keep the shared batch floor strip in sync when user edits a row floor
+        updateBatchFloorFromEntries();
       });
     });
 
@@ -2533,9 +2569,11 @@
       var suite = entry.suite.trim();
       var company = entry.company.trim();
       if (!suite && !company){ skippedEmpty++; return; }
+      // Use the per-entry floor if the user confirmed it, otherwise the batch floor
+      var entryFloor = (entry.floor && entry.floor.trim()) ? entry.floor.trim() : floor;
       var isDup = rows.some(function(r){
         return r.building.toLowerCase() === building.toLowerCase() &&
-          r.floor.toLowerCase() === floor.toLowerCase() &&
+          r.floor.toLowerCase() === entryFloor.toLowerCase() &&
           r.suite.toLowerCase() === suite.toLowerCase() &&
           r.company.toLowerCase() === company.toLowerCase();
       });
@@ -2543,7 +2581,7 @@
       rows.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + idx,
         building: building,
-        floor: floor,
+        floor: entryFloor,
         suite: suite,
         company: company,
         sf: entry.sf.trim(),
