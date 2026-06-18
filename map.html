@@ -75,6 +75,33 @@
     font-weight:700;
   }
 
+  details.manage-details{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    margin-bottom:12px;
+    overflow:hidden;
+  }
+  details.manage-details summary{
+    list-style:none;
+    cursor:pointer;
+    padding:14px;
+    font-weight:700;
+    font-size:0.92rem;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  details.manage-details summary::-webkit-details-marker{ display:none; }
+  details.manage-details summary::after{
+    content:"▸";
+    color:var(--muted);
+    font-size:0.8rem;
+    transition:transform 0.15s;
+  }
+  details.manage-details[open] summary::after{ transform:rotate(90deg); }
+  details.manage-details .details-body{ padding:0 14px 14px; }
+
   label{
     display:block;
     font-size:0.76rem;
@@ -83,6 +110,7 @@
     margin:8px 0 4px;
   }
   label:first-of-type{ margin-top:0; }
+  .muted-hint{ font-weight:400; text-transform:none; letter-spacing:0; color:var(--muted); }
 
   select, input[type="text"], textarea{
     width:100%;
@@ -133,6 +161,20 @@
   .btn-ghost{ background:#fff; color:var(--ink); border:2px solid var(--line); }
   .btn-stop{ background:var(--stop); }
 
+  .btn-compact{
+    flex:1;
+    min-height:42px;
+    font-size:0.82rem;
+    font-weight:700;
+    border:2px solid var(--line);
+    border-radius:9px;
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+    padding:6px 4px;
+  }
+  .btn-compact:active{ background:var(--paper); }
+
   .hint{ font-size:0.74rem; color:var(--muted); margin-top:6px; line-height:1.4; }
 
   .filter-row{ display:flex; gap:8px; }
@@ -146,8 +188,22 @@
     min-height:1.1em;
   }
 
+  /* route toolbar */
+  .route-toolbar-row{ display:flex; gap:8px; margin-top:8px; }
+  .route-toolbar-row:first-of-type{ margin-top:0; }
+  .selected-count{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    font-size:0.8rem;
+    font-weight:700;
+    color:var(--muted);
+    padding:0 4px;
+    white-space:nowrap;
+  }
+
   /* map */
-  #mapSection{ padding:8px; }
+  #mapSection{ padding:8px; position:relative; }
   #mapEl{
     width:100%;
     height:380px;
@@ -155,9 +211,92 @@
     border:1px solid var(--line);
     background:#e4e1d8;
   }
+  #mapFsBar{ display:none; }
+  #mapFsDrawerWrap{ display:none; }
+  #mapSection.fullscreen{
+    position:fixed;
+    inset:0;
+    z-index:2000;
+    margin:0;
+    border:none;
+    border-radius:0;
+    background:var(--paper);
+    display:flex;
+    flex-direction:column;
+    height:100dvh;
+    padding:0;
+  }
+  #mapSection.fullscreen #mapFsBar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 12px;
+    background:var(--ink);
+    color:#fff;
+    flex:0 0 auto;
+  }
+  #mapFsBar .fs-title{ font-size:0.78rem; font-weight:700; color:#b9b3a6; }
+  #exitFullScreenBtn{
+    flex:0 0 auto;
+    font-size:0.8rem;
+    font-weight:700;
+    color:#fff;
+    background:transparent;
+    border:2px solid #4a4f54;
+    border-radius:8px;
+    padding:8px 12px;
+    cursor:pointer;
+  }
+  #exitFullScreenBtn:active{ background:#2a2f34; }
+  #mapSection.fullscreen #mapFsBody{
+    display:flex;
+    flex-direction:column;
+    flex:1 1 auto;
+    min-height:0;
+  }
+  #mapSection.fullscreen #mapEl{
+    flex:1 1 auto;
+    height:auto;
+    min-height:140px;
+    border-radius:0;
+    border:none;
+  }
+  #mapSection.fullscreen #mapFsDrawerWrap{
+    display:block;
+    flex:0 0 42vh;
+    max-height:42vh;
+    overflow-y:auto;
+    border-top:2px solid var(--line);
+    padding:10px 12px 20px;
+    background:var(--paper);
+  }
+  #mapFsDrawerWrap section{ border:none; padding:0; margin:0; background:transparent; }
+  @media (min-width:760px){
+    #mapSection.fullscreen #mapFsBody{ flex-direction:row; }
+    #mapSection.fullscreen #mapFsDrawerWrap{
+      flex:0 0 360px;
+      max-height:none;
+      height:100%;
+      border-top:none;
+      border-left:2px solid var(--line);
+    }
+  }
+
   .leaflet-popup-content{ font-family:var(--sans); font-size:0.85rem; min-width:180px; }
   .popup-card strong{ font-size:0.92rem; }
   .popup-sub{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
+  .popup-status{
+    display:inline-block;
+    font-size:0.66rem;
+    font-weight:700;
+    background:var(--line);
+    color:var(--ink);
+    border-radius:999px;
+    padding:1px 8px;
+    margin-top:4px;
+  }
+  .popup-notes{ font-size:0.78rem; color:var(--muted); margin-top:4px; }
   .popup-actions{ display:flex; gap:8px; margin-top:8px; }
   .popup-actions a{
     flex:1;
@@ -191,12 +330,36 @@
     margin-bottom:8px;
     background:#fbfaf7;
   }
-  .map-row-main{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .map-row.editing{ background:#fff; border-color:var(--ink); border-width:2px; }
+  .map-row-main{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .row-select{ flex:0 0 auto; display:flex; align-items:center; padding-top:2px; }
+  .row-checkbox{ width:22px; height:22px; margin:0; accent-color:var(--go); cursor:pointer; }
+  .map-row-name-wrap{ flex:1; min-width:0; }
   .map-row-name{ font-weight:700; font-size:0.94rem; }
-  .map-row-check{ color:var(--go); font-weight:700; font-size:0.8rem; flex:0 0 auto; }
+  .map-row-check{ color:var(--go); font-weight:700; font-size:0.8rem; flex:0 0 auto; white-space:nowrap; }
   .map-row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
-  .map-row-warn{ font-size:0.74rem; color:var(--safety-dark); margin-top:4px; }
-  .map-row-actions{ display:flex; gap:6px; margin-top:8px; }
+  .map-row-status{
+    display:inline-block;
+    font-size:0.66rem;
+    font-weight:700;
+    background:var(--line);
+    color:var(--ink);
+    border-radius:999px;
+    padding:1px 8px;
+    margin-top:5px;
+  }
+  .map-row-notes{ font-size:0.78rem; color:var(--muted); margin-top:4px; font-style:italic; }
+  .map-row-warn{
+    display:inline-block;
+    font-size:0.7rem;
+    font-weight:700;
+    color:#fff;
+    background:var(--safety-dark);
+    border-radius:999px;
+    padding:2px 9px;
+    margin-top:5px;
+  }
+  .map-row-actions{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
   .map-row-actions a, .map-row-actions button{
     flex:1;
     text-align:center;
@@ -210,9 +373,26 @@
     color:var(--ink);
     cursor:pointer;
     white-space:nowrap;
+    min-width:64px;
   }
   .map-row-actions .visit-btn.done{ background:var(--go); color:#fff; border-color:var(--go); }
+  .map-row-actions .coords-btn{ background:var(--safety); color:#fff; border-color:var(--safety); }
   .map-row-actions button:active, .map-row-actions a:active{ background:var(--paper); }
+
+  .edit-form{ margin-top:6px; }
+  .edit-actions{ display:flex; gap:8px; margin-top:10px; }
+  .edit-delete-btn{
+    width:100%;
+    margin-top:10px;
+    min-height:40px;
+    border-radius:9px;
+    border:none;
+    background:var(--stop);
+    color:#fff;
+    font-weight:700;
+    font-size:0.84rem;
+    cursor:pointer;
+  }
 
   .empty{ text-align:center; color:var(--muted); font-size:0.86rem; padding:18px 4px; }
   .count-pill{
@@ -249,46 +429,85 @@
 
   <a class="btn btn-ghost" id="backToScannerBtn" href="index.html">← Back to Scanner</a>
 
-  <section>
-    <h2>Search</h2>
-    <input type="text" id="searchInput" placeholder="e.g. 5601 or Granite" autocomplete="off">
-    <div class="hint">Same building list as the Scanner page. Searches by street number or any part of the street name — capitalization and punctuation don't matter.</div>
-  </section>
-
-  <section>
-    <h2>Import Address List</h2>
-    <textarea id="pasteInput" placeholder="Paste addresses here, one per line, e.g.&#10;5601 Granite Pkwy, Plano, TX&#10;5001 Spring Valley Rd, Dallas, TX"></textarea>
-    <button class="btn btn-primary" id="importPasteBtn">⬇ IMPORT PASTED ADDRESSES</button>
-    <input type="file" id="csvInput" accept=".csv,text/csv,text/plain" style="display:none;">
-    <button class="btn btn-ghost" id="importFileBtn">📂 IMPORT CSV / TEXT FILE</button>
-    <div class="hint">
-      One address per line (a simple CSV with one address per row works too). Display names are generated automatically from each address — just the street number and street name. New addresses are added to the shared list; addresses already in it are skipped.
+  <details class="manage-details">
+    <summary>➕ Add a Building</summary>
+    <div class="details-body">
+      <label for="addAddress">Address</label>
+      <input type="text" id="addAddress" placeholder="e.g. 5601 Granite Pkwy, Plano, TX" autocomplete="off">
+      <label for="addDisplayName">Display Name <span class="muted-hint">(optional — auto-generated if blank)</span></label>
+      <input type="text" id="addDisplayName" placeholder="e.g. 5601 Granite Pkwy" autocomplete="off">
+      <label for="addNotes">Notes <span class="muted-hint">(optional)</span></label>
+      <input type="text" id="addNotes" placeholder="optional" autocomplete="off">
+      <div class="filter-row">
+        <div class="filter-field">
+          <label for="addLat">Latitude <span class="muted-hint">(optional)</span></label>
+          <input type="text" id="addLat" placeholder="e.g. 33.0566" inputmode="decimal" autocomplete="off">
+        </div>
+        <div class="filter-field">
+          <label for="addLng">Longitude <span class="muted-hint">(optional)</span></label>
+          <input type="text" id="addLng" placeholder="e.g. -96.8236" inputmode="decimal" autocomplete="off">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="addBuildingBtn">➕ ADD BUILDING</button>
+      <div class="hint">If you skip latitude/longitude, use "Locate Buildings" below to geocode it automatically, or come back and enter coordinates by hand any time.</div>
     </div>
-    <div class="hint">⚠ For "Visited" syncing with the Scanner page to work, each imported address needs to match the Building address used there (matching ignores case and punctuation).</div>
-    <button class="btn btn-ghost" id="geocodeBtn">📍 LOCATE BUILDINGS</button>
-    <div id="geocodeStatus"></div>
-    <button class="btn btn-stop" id="clearImportBtn">🗑 CLEAR ALL BUILDINGS</button>
+  </details>
+
+  <details class="manage-details">
+    <summary>📂 Import Address List</summary>
+    <div class="details-body">
+      <textarea id="pasteInput" placeholder="Paste addresses here, one per line, e.g.&#10;5601 Granite Pkwy, Plano, TX&#10;5001 Spring Valley Rd, Dallas, TX"></textarea>
+      <button class="btn btn-primary" id="importPasteBtn">⬇ IMPORT PASTED ADDRESSES</button>
+      <input type="file" id="csvInput" accept=".csv,text/csv,text/plain" style="display:none;">
+      <button class="btn btn-ghost" id="importFileBtn">📂 IMPORT CSV / TEXT FILE</button>
+      <div class="hint">
+        One address per line (a simple CSV with one address per row works too). Display names are generated automatically from each address. New addresses are added to the shared list; addresses already in it are skipped.
+      </div>
+      <div class="hint">⚠ For "Visited" syncing with the Scanner page to work, each imported address needs to match the Building address used there (matching ignores case and punctuation).</div>
+      <button class="btn btn-ghost" id="geocodeBtn">📍 LOCATE BUILDINGS</button>
+      <div id="geocodeStatus"></div>
+      <button class="btn btn-stop" id="clearImportBtn">🗑 CLEAR ALL BUILDINGS</button>
+    </div>
+  </details>
+
+  <section id="mapSection">
+    <button class="btn btn-ghost" id="fullScreenBtn">⛶ FULL SCREEN MAP</button>
+    <div id="mapFsBar">
+      <span class="fs-title">MAP / ROUTE PLANNER</span>
+      <button type="button" id="exitFullScreenBtn">✕ Exit Full Screen</button>
+    </div>
+    <div id="mapFsBody">
+      <div id="mapEl"></div>
+      <div id="mapFsDrawerWrap"></div>
+    </div>
   </section>
 
-  <section>
-    <h2>Filter</h2>
+  <div id="searchListPanelAnchor"></div>
+  <section id="searchListPanel">
+    <h2>Search &amp; Buildings</h2>
+    <input type="text" id="searchInput" placeholder="e.g. 5601 or Granite" autocomplete="off">
     <label for="visitedFilter">Visited</label>
     <select id="visitedFilter">
       <option value="">All</option>
       <option value="visited">Visited only</option>
       <option value="not">Not visited</option>
     </select>
-    <div class="hint">"Visited" is shared with the Scanner's "Mark Building Complete" — matched by address, so marking a building on either page updates the other.</div>
-  </section>
+    <div class="hint">Same building list as the Scanner page. "Visited" is shared with the Scanner's "Mark Building Complete" — marking a building on either page updates the other.</div>
 
-  <section id="mapSection">
-    <div id="mapEl"></div>
-  </section>
+    <div class="route-toolbar-row">
+      <button type="button" class="btn-compact" id="selectAllVisibleBtn">Select All Visible</button>
+      <button type="button" class="btn-compact" id="selectUnvisitedBtn">Select Unvisited</button>
+    </div>
+    <div class="route-toolbar-row">
+      <button type="button" class="btn-compact" id="clearSelectedBtn">Clear Selected</button>
+      <span class="selected-count" id="selectedCount">0 selected</span>
+    </div>
+    <button class="btn btn-save" id="openRouteBtn">🧭 OPEN ROUTE</button>
+    <div class="hint">Check buildings below (search/filter first to narrow them down), then tap Open Route to plan a multi-stop drive in Google Maps.</div>
 
-  <section>
-    <h2>Buildings <span class="count-pill" id="bldCount">0</span></h2>
+    <h2 style="margin-top:16px;">Buildings <span class="count-pill" id="bldCount">0</span></h2>
     <div id="bldListWrap">
-      <div class="empty">No buildings yet. Import a list above to get started.</div>
+      <div class="empty">No buildings yet. Import a list or add one above to get started.</div>
     </div>
   </section>
 
@@ -379,6 +598,7 @@
   var BUILDINGS_KEY = "bss_buildings_v1";
   var GEOCODE_CACHE_KEY = "bss_geocode_cache_v1";
   var COMPLETED_KEY = "bss_completed_v1"; // shared with the Scanner page
+  var MAX_ROUTE_STOPS = 10; // Google Maps' free web directions: current location + up to 9 waypoints + 1 destination
 
   function extractDisplayName(address){
     var addr = (address || "").trim();
@@ -428,6 +648,12 @@
   var $ = function(id){ return document.getElementById(id); };
 
   var backToScannerBtn = $("backToScannerBtn");
+  var addAddress = $("addAddress");
+  var addDisplayName = $("addDisplayName");
+  var addNotes = $("addNotes");
+  var addLat = $("addLat");
+  var addLng = $("addLng");
+  var addBuildingBtn = $("addBuildingBtn");
   var searchInput = $("searchInput");
   var pasteInput = $("pasteInput");
   var importPasteBtn = $("importPasteBtn");
@@ -439,9 +665,23 @@
   var visitedFilter = $("visitedFilter");
   var bldCount = $("bldCount");
   var bldListWrap = $("bldListWrap");
+  var selectAllVisibleBtn = $("selectAllVisibleBtn");
+  var selectUnvisitedBtn = $("selectUnvisitedBtn");
+  var clearSelectedBtn = $("clearSelectedBtn");
+  var selectedCountEl = $("selectedCount");
+  var openRouteBtn = $("openRouteBtn");
+  var fullScreenBtn = $("fullScreenBtn");
+  var exitFullScreenBtn = $("exitFullScreenBtn");
+  var mapSection = $("mapSection");
+  var mapFsDrawerWrap = $("mapFsDrawerWrap");
+  var searchListPanel = $("searchListPanel");
+  var searchListPanelAnchor = $("searchListPanelAnchor");
 
   var buildings = [];
   var markersById = {};
+  var selectedIds = new Set();
+  var editingId = null;
+  var fullscreenActive = false;
 
   // ---------- shared storage helpers ----------
 
@@ -477,6 +717,17 @@
     if (idx >= 0){ list.splice(idx, 1); } else { list.push(norm); }
     saveJson(COMPLETED_KEY, list);
   }
+  function renameVisited(oldAddress, newAddress){
+    if (!isVisited(oldAddress)) return;
+    var oldNorm = normalizeBuilding(oldAddress);
+    var newNorm = normalizeBuilding(newAddress);
+    if (oldNorm === newNorm) return;
+    var list = getCompletedList();
+    var idx = list.indexOf(oldNorm);
+    if (idx >= 0) list.splice(idx, 1);
+    if (list.indexOf(newNorm) === -1) list.push(newNorm);
+    saveJson(COMPLETED_KEY, list);
+  }
 
   function getGeocodeCache(){ return loadJson(GEOCODE_CACHE_KEY, {}); }
   function saveGeocodeCache(c){ saveJson(GEOCODE_CACHE_KEY, c); }
@@ -488,6 +739,72 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
+  function newBuildingId(){
+    return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function findBuildingByNormalizedAddress(norm){
+    for (var i = 0; i < buildings.length; i++){
+      if (normalizeSearch(buildings[i].address) === norm) return buildings[i];
+    }
+    return null;
+  }
+
+  // ---------- manual add ----------
+
+  function parseLatLngPair(latStr, lngStr){
+    latStr = (latStr || "").trim();
+    lngStr = (lngStr || "").trim();
+    if (!latStr && !lngStr) return { lat: null, lng: null, provided: false, valid: true };
+    if (!latStr || !lngStr) return { provided: true, valid: false };
+    var lat = parseFloat(latStr);
+    var lng = parseFloat(lngStr);
+    if (!isFinite(lat) || !isFinite(lng)) return { provided: true, valid: false };
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return { provided: true, valid: false, outOfRange: true };
+    return { lat: lat, lng: lng, provided: true, valid: true };
+  }
+
+  addBuildingBtn.addEventListener("click", function(){
+    var address = addAddress.value.trim();
+    if (!address){
+      alert("Enter an address first.");
+      return;
+    }
+    var norm = normalizeSearch(address);
+    var dupe = findBuildingByNormalizedAddress(norm);
+    if (dupe){
+      alert("That address looks like it's already in your list as \"" + (dupe.displayName || dupe.address) + "\". Edit that entry instead if you need to change it.");
+      return;
+    }
+    var coords = parseLatLngPair(addLat.value, addLng.value);
+    if (coords.provided && !coords.valid){
+      alert(coords.outOfRange ?
+        "Latitude must be between -90 and 90, longitude between -180 and 180." :
+        "Enter both latitude and longitude as numbers, or leave both blank.");
+      return;
+    }
+    var displayName = addDisplayName.value.trim() || extractDisplayName(address);
+    var b = {
+      id: newBuildingId(),
+      address: address,
+      displayName: displayName,
+      notes: addNotes.value.trim(),
+      status: "",
+      lat: coords.lat,
+      lng: coords.lng,
+      geocodeFailed: false
+    };
+    buildings.push(b);
+    saveBuildings();
+    addAddress.value = "";
+    addDisplayName.value = "";
+    addNotes.value = "";
+    addLat.value = "";
+    addLng.value = "";
+    renderAll();
+    alert("Added \"" + displayName + "\"" + (coords.lat != null ? "." : " — tap \"Locate Buildings\" to put it on the map, or enter coordinates by hand on its row."));
+  });
 
   // ---------- Import Address List (plain text, one per line — a simple CSV works too) ----------
 
@@ -526,7 +843,7 @@
       if (existingKeys[key]){ skipped++; return; }
       existingKeys[key] = true;
       added.push({
-        id: "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        id: newBuildingId(),
         address: addr,
         displayName: extractDisplayName(addr),
         notes: "",
@@ -574,8 +891,114 @@
     var ok = confirm("Clear all " + buildings.length + " building(s) from the shared list? This affects both the Scanner and Map pages' search, but does not affect your saved scan entries or visited marks.");
     if (!ok) return;
     buildings = [];
+    selectedIds.clear();
     saveBuildings();
     renderAll();
+  });
+
+  // ---------- edit / delete ----------
+
+  function startEdit(id){
+    editingId = id;
+    renderBuildingList();
+  }
+  function cancelEdit(){
+    editingId = null;
+    renderBuildingList();
+  }
+  function deleteBuilding(id){
+    var b = buildings.filter(function(x){ return x.id === id; })[0];
+    if (!b) return;
+    var ok = confirm("Delete \"" + (b.displayName || b.address) + "\" from the shared building list? This does not affect saved scan entries.");
+    if (!ok) return;
+    buildings = buildings.filter(function(x){ return x.id !== id; });
+    selectedIds.delete(id);
+    if (editingId === id) editingId = null;
+    saveBuildings();
+    renderAll();
+  }
+  function saveEdit(id, fields){
+    var b = buildings.filter(function(x){ return x.id === id; })[0];
+    if (!b) return;
+    var address = fields.address.trim();
+    if (!address){
+      alert("Address can't be blank.");
+      return;
+    }
+    var coords = parseLatLngPair(fields.lat, fields.lng);
+    if (coords.provided && !coords.valid){
+      alert(coords.outOfRange ?
+        "Latitude must be between -90 and 90, longitude between -180 and 180." :
+        "Enter both latitude and longitude as numbers, or leave both blank to mark it as needing coordinates.");
+      return;
+    }
+    var oldAddress = b.address;
+    b.address = address;
+    b.displayName = fields.displayName.trim() || extractDisplayName(address);
+    b.notes = fields.notes.trim();
+    b.status = fields.status.trim();
+    b.lat = coords.lat;
+    b.lng = coords.lng;
+    b.geocodeFailed = (coords.lat == null);
+    renameVisited(oldAddress, address);
+    editingId = null;
+    saveBuildings();
+    renderAll();
+  }
+
+  // ---------- route selection ----------
+
+  function updateSelectedCount(){
+    selectedCountEl.textContent = selectedIds.size + " selected";
+  }
+
+  function toggleSelected(id, checked){
+    if (checked) selectedIds.add(id); else selectedIds.delete(id);
+    updateSelectedCount();
+  }
+
+  selectAllVisibleBtn.addEventListener("click", function(){
+    getFilteredBuildings().forEach(function(b){ selectedIds.add(b.id); });
+    renderBuildingList();
+  });
+  selectUnvisitedBtn.addEventListener("click", function(){
+    getFilteredBuildings().forEach(function(b){
+      if (!isVisited(b.address)) selectedIds.add(b.id);
+    });
+    renderBuildingList();
+  });
+  clearSelectedBtn.addEventListener("click", function(){
+    selectedIds.clear();
+    renderBuildingList();
+  });
+
+  function stopLocationString(b){
+    if (b.lat != null && b.lng != null) return b.lat + "," + b.lng;
+    return b.address;
+  }
+
+  openRouteBtn.addEventListener("click", function(){
+    var selected = buildings.filter(function(b){ return selectedIds.has(b.id); });
+    if (!selected.length){
+      alert("Select at least one building first — tap the checkbox on each row, or use \"Select All Visible\" / \"Select Unvisited\".");
+      return;
+    }
+    var capped = selected.length > MAX_ROUTE_STOPS;
+    if (capped) selected = selected.slice(0, MAX_ROUTE_STOPS);
+
+    var destination = selected[selected.length - 1];
+    var waypointBuildings = selected.slice(0, -1);
+    var url = "https://www.google.com/maps/dir/?api=1&destination=" +
+      encodeURIComponent(stopLocationString(destination)) + "&travelmode=driving";
+    if (waypointBuildings.length){
+      url += "&waypoints=" + waypointBuildings.map(function(b){
+        return encodeURIComponent(stopLocationString(b));
+      }).join("|");
+    }
+    if (capped){
+      alert("Google Maps' free directions support up to " + MAX_ROUTE_STOPS + " stops in one route. Opening a route for the first " + MAX_ROUTE_STOPS + " selected buildings; the rest were left out.");
+    }
+    window.open(url, "_blank", "noopener");
   });
 
   // ---------- geocoding (free OpenStreetMap Nominatim, rate-limited) ----------
@@ -625,7 +1048,7 @@
 
   function runGeocoding(){
     if (!buildings.length){
-      alert("Import an address list first.");
+      alert("Import or add an address first.");
       return;
     }
     var cache = getGeocodeCache();
@@ -653,6 +1076,7 @@
     geocodeBtn.disabled = true;
     importPasteBtn.disabled = true;
     importFileBtn.disabled = true;
+    addBuildingBtn.disabled = true;
 
     var i = 0;
     function next(){
@@ -660,6 +1084,7 @@
         geocodeBtn.disabled = false;
         importPasteBtn.disabled = false;
         importFileBtn.disabled = false;
+        addBuildingBtn.disabled = false;
         updateGeocodeHint();
         saveBuildings();
         renderAll();
@@ -672,6 +1097,7 @@
         if (result){
           b.lat = result.lat;
           b.lng = result.lng;
+          b.geocodeFailed = false;
           cache[key] = result;
           saveGeocodeCache(cache);
         } else {
@@ -723,6 +1149,8 @@
     return '<div class="popup-card" data-id="' + b.id + '">' +
       "<strong>" + escapeHtml(b.displayName || b.address) + "</strong>" +
       '<div class="popup-sub">' + escapeHtml(b.address) + "</div>" +
+      (b.status ? '<div><span class="popup-status">' + escapeHtml(b.status) + "</span></div>" : "") +
+      (b.notes ? '<div class="popup-notes">' + escapeHtml(b.notes) + "</div>" : "") +
       '<div class="popup-actions">' +
         '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple Maps</a>' +
         '<a href="' + links.google + '" target="_blank" rel="noopener">Google Maps</a>' +
@@ -782,12 +1210,35 @@
 
   // ---------- building list ----------
 
+  function editFormHtml(b){
+    return '<div class="edit-form" data-id="' + b.id + '">' +
+      '<label>Address</label>' +
+      '<input type="text" class="edit-address" value="' + escapeHtml(b.address) + '">' +
+      '<label>Display Name <span class="muted-hint">(blank = auto from address)</span></label>' +
+      '<input type="text" class="edit-name" value="' + escapeHtml(b.displayName || "") + '">' +
+      '<label>Notes</label>' +
+      '<input type="text" class="edit-notes" value="' + escapeHtml(b.notes || "") + '">' +
+      '<label>Status</label>' +
+      '<input type="text" class="edit-status" value="' + escapeHtml(b.status || "") + '">' +
+      '<div class="filter-row">' +
+        '<div class="filter-field"><label>Latitude</label><input type="text" class="edit-lat" inputmode="decimal" value="' + (b.lat != null ? b.lat : "") + '"></div>' +
+        '<div class="filter-field"><label>Longitude</label><input type="text" class="edit-lng" inputmode="decimal" value="' + (b.lng != null ? b.lng : "") + '"></div>' +
+      "</div>" +
+      '<div class="edit-actions">' +
+        '<button type="button" class="btn-compact save-edit-btn" data-id="' + b.id + '">💾 Save</button>' +
+        '<button type="button" class="btn-compact cancel-edit-btn" data-id="' + b.id + '">Cancel</button>' +
+      "</div>" +
+      '<button type="button" class="edit-delete-btn" data-id="' + b.id + '">🗑 Delete Building</button>' +
+    "</div>";
+  }
+
   function renderBuildingList(){
     var filtered = getFilteredBuildings();
     bldCount.textContent = filtered.length + (filtered.length !== buildings.length ? " / " + buildings.length : "");
+    updateSelectedCount();
 
     if (!buildings.length){
-      bldListWrap.innerHTML = '<div class="empty">No buildings yet. Import a list above to get started.</div>';
+      bldListWrap.innerHTML = '<div class="empty">No buildings yet. Import a list or add one above to get started.</div>';
       return;
     }
     if (!filtered.length){
@@ -797,33 +1248,51 @@
 
     var html = "";
     filtered.forEach(function(b){
+      var editing = (b.id === editingId);
       var visited = isVisited(b.address);
       var links = mapsLinks(b);
-      html += '<div class="map-row" data-id="' + b.id + '">' +
+      var checked = selectedIds.has(b.id);
+      html += '<div class="map-row' + (editing ? " editing" : "") + '" data-id="' + b.id + '">' +
         '<div class="map-row-main">' +
-          '<span class="map-row-name">' + escapeHtml(b.displayName || b.address) + "</span>" +
+          '<span class="row-select"><input type="checkbox" class="row-checkbox" data-id="' + b.id + '"' + (checked ? " checked" : "") + '></span>' +
+          '<span class="map-row-name-wrap">' +
+            '<span class="map-row-name">' + escapeHtml(b.displayName || b.address) + "</span>" +
+            '<div class="map-row-sub">' + escapeHtml(b.address) + "</div>" +
+            (b.status ? '<div><span class="map-row-status">' + escapeHtml(b.status) + "</span></div>" : "") +
+            (b.notes ? '<div class="map-row-notes">' + escapeHtml(b.notes) + "</div>" : "") +
+            (b.lat == null ? '<div><span class="map-row-warn">⚠ Needs Coordinates</span></div>' : "") +
+          "</span>" +
           (visited ? '<span class="map-row-check">✓ Visited</span>' : "") +
         "</div>" +
-        '<div class="map-row-sub">' + escapeHtml(b.address) + "</div>" +
-        (b.lat == null ? '<div class="map-row-warn">⚠ ' + (b.geocodeFailed ? "Couldn't locate this address" : "Not located yet") + "</div>" : "") +
+        (editing ? editFormHtml(b) :
         '<div class="map-row-actions">' +
           '<a href="' + links.apple + '" target="_blank" rel="noopener">Apple</a>' +
           '<a href="' + links.google + '" target="_blank" rel="noopener">Google</a>' +
           '<button type="button" class="visit-btn' + (visited ? " done" : "") + '" data-id="' + b.id + '">' + (visited ? "Unmark" : "Visited") + "</button>" +
-        "</div>" +
+          (b.lat == null ?
+            '<button type="button" class="coords-btn" data-id="' + b.id + '">📍 Coordinates</button>' :
+            '<button type="button" class="edit-btn" data-id="' + b.id + '">✏️ Edit</button>') +
+        "</div>") +
       "</div>";
     });
     bldListWrap.innerHTML = html;
 
     bldListWrap.querySelectorAll(".map-row").forEach(function(row){
+      if (row.classList.contains("editing")) return;
       row.addEventListener("click", function(e){
-        if (e.target.closest("a") || e.target.closest("button")) return;
+        if (e.target.closest("a") || e.target.closest("button") || e.target.closest("input")) return;
         var id = row.getAttribute("data-id");
         var marker = markersById[id];
         if (marker){
           map.setView(marker.getLatLng(), 16);
           marker.openPopup();
         }
+      });
+    });
+
+    bldListWrap.querySelectorAll(".row-checkbox").forEach(function(cb){
+      cb.addEventListener("change", function(){
+        toggleSelected(cb.getAttribute("data-id"), cb.checked);
       });
     });
 
@@ -834,6 +1303,38 @@
         if (!b) return;
         toggleVisited(b.address);
         renderAll();
+      });
+    });
+
+    bldListWrap.querySelectorAll(".edit-btn, .coords-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        startEdit(btn.getAttribute("data-id"));
+      });
+    });
+
+    bldListWrap.querySelectorAll(".cancel-edit-btn").forEach(function(btn){
+      btn.addEventListener("click", cancelEdit);
+    });
+
+    bldListWrap.querySelectorAll(".edit-delete-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        deleteBuilding(btn.getAttribute("data-id"));
+      });
+    });
+
+    bldListWrap.querySelectorAll(".save-edit-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-id");
+        var form = bldListWrap.querySelector('.edit-form[data-id="' + id + '"]');
+        if (!form) return;
+        saveEdit(id, {
+          address: form.querySelector(".edit-address").value,
+          displayName: form.querySelector(".edit-name").value,
+          notes: form.querySelector(".edit-notes").value,
+          status: form.querySelector(".edit-status").value,
+          lat: form.querySelector(".edit-lat").value,
+          lng: form.querySelector(".edit-lng").value
+        });
       });
     });
   }
@@ -853,6 +1354,29 @@
   visitedFilter.addEventListener("change", function(){
     renderMarkersOnly();
     renderBuildingList();
+  });
+
+  // ---------- full screen map ----------
+
+  function enterFullscreen(){
+    mapFsDrawerWrap.appendChild(searchListPanel);
+    mapSection.classList.add("fullscreen");
+    fullscreenActive = true;
+    setTimeout(function(){ map.invalidateSize(); }, 60);
+  }
+  function exitFullscreen(){
+    searchListPanelAnchor.after(searchListPanel);
+    mapSection.classList.remove("fullscreen");
+    fullscreenActive = false;
+    setTimeout(function(){ map.invalidateSize(); }, 60);
+  }
+  fullScreenBtn.addEventListener("click", enterFullscreen);
+  exitFullScreenBtn.addEventListener("click", exitFullscreen);
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && fullscreenActive) exitFullscreen();
+  });
+  window.addEventListener("resize", function(){
+    if (fullscreenActive) map.invalidateSize();
   });
 
   // ---------- init ----------
