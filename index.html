@@ -1449,61 +1449,72 @@
   // "Suite"/"Ste", it has at least one digit and at least as many digit
   // characters as letter characters — e.g. "100" or "Suite 4B", but not a
   // company name that happens to contain a number like "3M Company".
-  function isMostlyNumericLine(line){
-    var cleaned = line.replace(LABEL_WORD_REGEX, " ").replace(/\s+/g, " ").trim();
-    if (!cleaned) return false;
-    var digitCount = (cleaned.match(/\d/g) || []).length;
-    var letterCount = (cleaned.match(/[a-zA-Z]/g) || []).length;
-    return digitCount > 0 && digitCount >= letterCount;
-  }
-
-  // Walks the lines of a single PHOTO block and pairs each suite line with
-  // the non-empty line(s) that follow it, so one block can yield multiple
-  // suite/company entries instead of just one.
+  // Scans a block of text word-by-word (not just whole-line) so a suite
+  // number embedded anywhere in a line — at the start, the end, or mixed in
+  // with company text like "SUMMIT PARTNERS 200" — is correctly split off
+  // and paired with its company, producing every suite/company pair found
+  // instead of stopping at the first one.
   function parseBlockIntoPairs(blockText){
     var lines = (blockText || "").split("\n").map(function(l){ return l.trim(); });
     var pairs = [];
-    var pendingSuite = null;     // a suite number still waiting for its company line
-    var pendingCompanies = [];   // company line(s) seen with no suite waiting yet
+    var pendingSuite = null;          // a suite number still waiting for its company words
+    var pendingSuiteWords = [];       // company words collected so far for pendingSuite
+    var pendingCompanies = [];        // whole company chunks seen with no suite waiting yet
 
-    function isLabelOnlyLine(line){
-      var stripped = line.replace(LABEL_WORD_REGEX, " ").replace(/\s+/g, " ").trim();
-      return !stripped;
+    function isLabelWord(word){
+      var t = word.replace(/[.,:#]+$/, "");
+      LABEL_WORD_REGEX.lastIndex = 0;
+      var m = LABEL_WORD_REGEX.test(t);
+      LABEL_WORD_REGEX.lastIndex = 0;
+      return m && t.replace(LABEL_WORD_REGEX, "").trim() === "";
+    }
+
+    function flushPendingSuite(){
+      if (pendingSuite !== null){
+        pairs.push({ suite: pendingSuite, company: pendingSuiteWords.join(" ").trim() });
+        pendingSuite = null;
+        pendingSuiteWords = [];
+      }
+    }
+
+    function startNewSuite(suiteNum){
+      flushPendingSuite();
+      if (pendingCompanies.length){
+        // a company chunk was already waiting (showed up before any number
+        // claimed it) — this number claims the oldest one
+        pairs.push({ suite: suiteNum, company: pendingCompanies.shift() });
+      } else {
+        pendingSuite = suiteNum;
+        pendingSuiteWords = [];
+      }
     }
 
     lines.forEach(function(line){
       if (isJunkLine(line)) return;
-      if (isLabelOnlyLine(line)) return; // e.g. a stray "Suite" line by itself
 
-      if (isMostlyNumericLine(line)){
-        var suiteNum = line.replace(LABEL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
-        if (pendingCompanies.length){
-          // a company line was already waiting (came before any number claimed
-          // it) — this number claims the oldest one, oldest-first
-          pairs.push({ suite: suiteNum, company: pendingCompanies.shift() });
+      var words = line.split(/\s+/).filter(function(w){ return w.length > 0; });
+      var lineCompanyWords = []; // words on this line with no suite pending yet
+
+      words.forEach(function(word){
+        if (isLabelWord(word)) return; // skip bare label words like "Suite"/"Ste"
+        if (/^\d{1,5}$/.test(word)){
+          startNewSuite(word);
+        } else if (pendingSuite !== null){
+          pendingSuiteWords.push(word);
         } else {
-          if (pendingSuite !== null){
-            // the previous suite never got a company — surface it as-is
-            pairs.push({ suite: pendingSuite, company: "" });
-          }
-          pendingSuite = suiteNum;
+          lineCompanyWords.push(word);
         }
-      } else {
-        if (pendingSuite !== null){
-          pairs.push({ suite: pendingSuite, company: line });
-          pendingSuite = null;
-        } else {
-          pendingCompanies.push(line);
-        }
+      });
+
+      if (lineCompanyWords.length){
+        pendingCompanies.push(lineCompanyWords.join(" "));
       }
     });
 
     // Nothing left unmatched disappears silently — it surfaces in the
     // review list (blank suite or blank company) so it can be edited or
     // deleted there instead.
-    if (pendingSuite !== null){
-      pairs.push({ suite: pendingSuite, company: "" });
-    }
+    flushPendingSuite();
     pendingCompanies.forEach(function(c){
       pairs.push({ suite: "", company: c });
     });
@@ -1515,29 +1526,32 @@
     return suite.trim().toLowerCase() + "||" + company.trim().toLowerCase().replace(/\s+/g, " ");
   }
 
-  // Counts how many genuine suite-number lines are in a chunk of text — used
-  // to decide whether a no-marker paste is really "many entries" rather than
-  // one entry whose company name happens to wrap onto a second line.
-  function countSuiteLines(text){
-    var lines = (text || "").split("\n").map(function(l){ return l.trim(); });
-    var count = 0;
-    lines.forEach(function(line){
-      if (isJunkLine(line)) return;
-      if (isMostlyNumericLine(line)) count++;
-    });
-    return count;
-  }
+  // Single, unified entry point: returns the full array of every suite/
+  // company pair found in the pasted text (PHOTO-separated or not),
+  // deduped. The caller decides what to do based on how many came back —
+  // it never stops after the first one.
+  function parseBulkOcrEntries(text){
+    var sections = splitMultiPhotoText(text);
+    var blocks = (sections && sections.length) ? sections : [text];
 
-  function startBatchReviewFromPairs(originalText, rawPairs){
+    var rawPairs = [];
+    blocks.forEach(function(block){
+      parseBlockIntoPairs(block).forEach(function(p){ rawPairs.push(p); });
+    });
+
     var seen = {};
-    batchEntries = [];
+    var entries = [];
     rawPairs.forEach(function(p){
       var key = pairDedupeKey(p.suite, p.company);
-      if (seen[key]) return; // same suite + company already in this batch — skip
+      if (seen[key]) return; // same suite + company already found — skip
       seen[key] = true;
-      batchEntries.push({ suite: p.suite, company: p.company, sf: "", notes: "", raw: p.company });
+      entries.push({ suite: p.suite, company: p.company, sf: "", notes: "", raw: p.company });
     });
+    return entries;
+  }
 
+  function startBatchReviewFromEntries(originalText, entries){
+    batchEntries = entries;
     batchModeActive = true;
     rawText.value = originalText.trim();
     hideParseHint();
@@ -1547,7 +1561,6 @@
     renderBatchList();
     updateBatchCounts();
   }
-
 
   function exitBatchMode(){
     batchModeActive = false;
@@ -1568,26 +1581,15 @@
     appleOcrPaste.value = text;
     saveDraft();
 
-    var sections = splitMultiPhotoText(text);
-    if (sections && sections.length){
-      var rawPairs = [];
-      sections.forEach(function(sectionText){
-        parseBlockIntoPairs(sectionText).forEach(function(p){ rawPairs.push(p); });
-      });
-      startBatchReviewFromPairs(text, rawPairs);
+    var entries = parseBulkOcrEntries(text);
+
+    if (entries.length > 1){
+      startBatchReviewFromEntries(text, entries);
       return;
     }
 
-    // No PHOTO markers — but bulk OCR text (e.g. a Shortcut run over many
-    // suites at once) can still contain several suite/company pairs in one
-    // paste. Only treat it as a batch when there are genuinely 2+ suite
-    // numbers, so a normal single scan whose company name happens to wrap
-    // onto a second line still goes through the unchanged single-entry path.
-    if (countSuiteLines(text) >= 2){
-      startBatchReviewFromPairs(text, parseBlockIntoPairs(text));
-      return;
-    }
-
+    // 0 or 1 entry found — the normal single-entry workflow, completely
+    // unchanged: populate the single suite/company/sf/notes fields directly.
     exitBatchMode();
     var parsed = parseRawText(text);
     applyParsedToFields(parsed);
