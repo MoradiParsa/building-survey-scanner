@@ -666,7 +666,7 @@
     </div>
 
     <div id="batchReviewPanel" class="hidden">
-      <div class="batch-intro">Found <span id="batchCount">0</span> photo section(s) below — review or edit each one, then Save All.</div>
+      <div class="batch-intro">Found <span id="batchCount">0</span> entries below (duplicates removed) — review or edit each one, then Save All.</div>
       <div id="batchListWrap"></div>
       <button class="btn btn-save btn-biggest" id="saveAllBtn">✔ SAVE ALL (<span id="batchSaveCount">0</span>)</button>
       <button class="btn btn-stop btn-sm" id="discardBatchBtn">Discard Batch</button>
@@ -1341,18 +1341,21 @@
     }
   }
 
-  // Detects a multi-photo paste like:
+  // Detects a multi-photo paste, either the original style:
   //   --- PHOTO 1 ---
   //   (text)
-  //   --- PHOTO 2 ---
+  // or the newer Shortcut style:
+  //   ========== PHOTO ==========
   //   (text)
   // Returns an array of section strings (one per photo), or null if no
   // markers are found — in which case the existing single-photo path runs
   // completely unchanged.
+  var PHOTO_SEPARATOR_TEST = /[-=]{2,}\s*photo\s*\d*\s*[-=]{2,}/i;
+  var PHOTO_SEPARATOR_SPLIT = /[-=]{2,}\s*photo\s*\d*\s*[-=]{2,}/gi;
+
   function splitMultiPhotoText(text){
-    var hasMarkers = /---\s*photo\s*\d+\s*---/i.test(text);
-    if (!hasMarkers) return null;
-    var sections = text.split(/---\s*photo\s*\d+\s*---/gi)
+    if (!PHOTO_SEPARATOR_TEST.test(text)) return null;
+    var sections = text.split(PHOTO_SEPARATOR_SPLIT)
       .map(function(s){ return s.trim(); })
       .filter(function(s){ return s.length > 0; });
     return sections.length ? sections : null;
@@ -1429,15 +1432,88 @@
     });
   }
 
-  function startBatchReview(originalText, sections){
-    batchEntries = sections.map(function(sectionText){
-      var parsed = parseRawText(sectionText);
-      return { suite: parsed.suite, company: parsed.company, sf: "", notes: "", raw: parsed.raw };
+  // Lines that should never become (or be folded into) an entry — stray
+  // separator artifacts or known Shortcuts placeholder text.
+  function isJunkLine(line){
+    var t = (line || "").trim();
+    if (!t) return true;
+    var low = t.toLowerCase();
+    if (low === "photo") return true;
+    if (low === "magic variable") return true;
+    if (low === "extracted text") return true;
+    if (PHOTO_SEPARATOR_TEST.test(t)) return true;
+    return false;
+  }
+
+  // A line counts as a suite line when, after stripping label words like
+  // "Suite"/"Ste", it has at least one digit and at least as many digit
+  // characters as letter characters — e.g. "100" or "Suite 4B", but not a
+  // company name that happens to contain a number like "3M Company".
+  function isMostlyNumericLine(line){
+    var cleaned = line.replace(LABEL_WORD_REGEX, " ").replace(/\s+/g, " ").trim();
+    if (!cleaned) return false;
+    var digitCount = (cleaned.match(/\d/g) || []).length;
+    var letterCount = (cleaned.match(/[a-zA-Z]/g) || []).length;
+    return digitCount > 0 && digitCount >= letterCount;
+  }
+
+  // Walks the lines of a single PHOTO block and pairs each suite line with
+  // the non-empty line(s) that follow it, so one block can yield multiple
+  // suite/company entries instead of just one.
+  function parseBlockIntoPairs(blockText){
+    var lines = (blockText || "").split("\n").map(function(l){ return l.trim(); });
+    var pairs = [];
+    var currentSuite = null;
+    var currentCompanyLines = [];
+
+    function flush(){
+      if ((currentSuite && currentSuite.trim()) || currentCompanyLines.length){
+        pairs.push({
+          suite: (currentSuite || "").trim(),
+          company: currentCompanyLines.join("\n").trim()
+        });
+      }
+      currentSuite = null;
+      currentCompanyLines = [];
+    }
+
+    lines.forEach(function(line){
+      if (isJunkLine(line)) return;
+      if (isMostlyNumericLine(line)){
+        flush();
+        currentSuite = line.replace(LABEL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+      } else {
+        currentCompanyLines.push(line);
+      }
     });
+    flush();
+
+    return pairs.filter(function(p){ return p.suite || p.company; });
+  }
+
+  function pairDedupeKey(suite, company){
+    return suite.trim().toLowerCase() + "||" + company.trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  function startBatchReview(originalText, sections){
+    var rawPairs = [];
+    sections.forEach(function(sectionText){
+      parseBlockIntoPairs(sectionText).forEach(function(p){ rawPairs.push(p); });
+    });
+
+    var seen = {};
+    batchEntries = [];
+    rawPairs.forEach(function(p){
+      var key = pairDedupeKey(p.suite, p.company);
+      if (seen[key]) return; // same suite + company already in this batch — skip
+      seen[key] = true;
+      batchEntries.push({ suite: p.suite, company: p.company, sf: "", notes: "", raw: p.company });
+    });
+
     batchModeActive = true;
     rawText.value = originalText.trim();
     hideParseHint();
-    setClipboardStatus("✓ Found " + batchEntries.length + " photo section(s) — review below", "success", true);
+    setClipboardStatus("✓ Found " + batchEntries.length + " entr" + (batchEntries.length === 1 ? "y" : "ies") + " — review below", "success", true);
     singleEntryFields.classList.add("hidden");
     batchReviewPanel.classList.remove("hidden");
     renderBatchList();
