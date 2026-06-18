@@ -1463,30 +1463,50 @@
   function parseBlockIntoPairs(blockText){
     var lines = (blockText || "").split("\n").map(function(l){ return l.trim(); });
     var pairs = [];
-    var currentSuite = null;
-    var currentCompanyLines = [];
+    var pendingSuite = null;     // a suite number still waiting for its company line
+    var pendingCompanies = [];   // company line(s) seen with no suite waiting yet
 
-    function flush(){
-      if ((currentSuite && currentSuite.trim()) || currentCompanyLines.length){
-        pairs.push({
-          suite: (currentSuite || "").trim(),
-          company: currentCompanyLines.join("\n").trim()
-        });
-      }
-      currentSuite = null;
-      currentCompanyLines = [];
+    function isLabelOnlyLine(line){
+      var stripped = line.replace(LABEL_WORD_REGEX, " ").replace(/\s+/g, " ").trim();
+      return !stripped;
     }
 
     lines.forEach(function(line){
       if (isJunkLine(line)) return;
+      if (isLabelOnlyLine(line)) return; // e.g. a stray "Suite" line by itself
+
       if (isMostlyNumericLine(line)){
-        flush();
-        currentSuite = line.replace(LABEL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+        var suiteNum = line.replace(LABEL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+        if (pendingCompanies.length){
+          // a company line was already waiting (came before any number claimed
+          // it) — this number claims the oldest one, oldest-first
+          pairs.push({ suite: suiteNum, company: pendingCompanies.shift() });
+        } else {
+          if (pendingSuite !== null){
+            // the previous suite never got a company — surface it as-is
+            pairs.push({ suite: pendingSuite, company: "" });
+          }
+          pendingSuite = suiteNum;
+        }
       } else {
-        currentCompanyLines.push(line);
+        if (pendingSuite !== null){
+          pairs.push({ suite: pendingSuite, company: line });
+          pendingSuite = null;
+        } else {
+          pendingCompanies.push(line);
+        }
       }
     });
-    flush();
+
+    // Nothing left unmatched disappears silently — it surfaces in the
+    // review list (blank suite or blank company) so it can be edited or
+    // deleted there instead.
+    if (pendingSuite !== null){
+      pairs.push({ suite: pendingSuite, company: "" });
+    }
+    pendingCompanies.forEach(function(c){
+      pairs.push({ suite: "", company: c });
+    });
 
     return pairs.filter(function(p){ return p.suite || p.company; });
   }
@@ -1495,12 +1515,20 @@
     return suite.trim().toLowerCase() + "||" + company.trim().toLowerCase().replace(/\s+/g, " ");
   }
 
-  function startBatchReview(originalText, sections){
-    var rawPairs = [];
-    sections.forEach(function(sectionText){
-      parseBlockIntoPairs(sectionText).forEach(function(p){ rawPairs.push(p); });
+  // Counts how many genuine suite-number lines are in a chunk of text — used
+  // to decide whether a no-marker paste is really "many entries" rather than
+  // one entry whose company name happens to wrap onto a second line.
+  function countSuiteLines(text){
+    var lines = (text || "").split("\n").map(function(l){ return l.trim(); });
+    var count = 0;
+    lines.forEach(function(line){
+      if (isJunkLine(line)) return;
+      if (isMostlyNumericLine(line)) count++;
     });
+    return count;
+  }
 
+  function startBatchReviewFromPairs(originalText, rawPairs){
     var seen = {};
     batchEntries = [];
     rawPairs.forEach(function(p){
@@ -1519,6 +1547,7 @@
     renderBatchList();
     updateBatchCounts();
   }
+
 
   function exitBatchMode(){
     batchModeActive = false;
@@ -1541,12 +1570,27 @@
 
     var sections = splitMultiPhotoText(text);
     if (sections && sections.length){
-      startBatchReview(text, sections);
-    } else {
-      exitBatchMode();
-      var parsed = parseRawText(text);
-      applyParsedToFields(parsed);
+      var rawPairs = [];
+      sections.forEach(function(sectionText){
+        parseBlockIntoPairs(sectionText).forEach(function(p){ rawPairs.push(p); });
+      });
+      startBatchReviewFromPairs(text, rawPairs);
+      return;
     }
+
+    // No PHOTO markers — but bulk OCR text (e.g. a Shortcut run over many
+    // suites at once) can still contain several suite/company pairs in one
+    // paste. Only treat it as a batch when there are genuinely 2+ suite
+    // numbers, so a normal single scan whose company name happens to wrap
+    // onto a second line still goes through the unchanged single-entry path.
+    if (countSuiteLines(text) >= 2){
+      startBatchReviewFromPairs(text, parseBlockIntoPairs(text));
+      return;
+    }
+
+    exitBatchMode();
+    var parsed = parseRawText(text);
+    applyParsedToFields(parsed);
   }
 
   // Fires automatically the instant a paste lands in the box — this is the
